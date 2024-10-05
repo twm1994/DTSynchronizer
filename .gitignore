@@ -1,3 +1,4 @@
 *.sca
 *.exe
-*.o
+/out/clang-debug
+/out/clang-release

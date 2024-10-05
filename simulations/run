@@ -1,0 +1,4 @@
+#!/bin/sh
+cd `dirname $0`
+../src/dtsynchronizer -n .:../src $*
+# for shared lib, use: opp_run -l ../src/dtsynchronizer -n .:../src $*

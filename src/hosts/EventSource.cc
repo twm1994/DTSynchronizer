@@ -36,14 +36,15 @@ void EventSource::initialize() {
     for (pt::ptree::value_type &node : root.get_child("nodes")) {
         SituationNode situation;
         situation.id = node.second.get<int>("ID");
-        situations.push_back(situation);
 
         if (!node.second.get_child("Predecessor").empty()) {
             for (pt::ptree::value_type &pre : node.second.get_child(
                     "Predecessor")) {
                 SituationRelation relation;
-                relation.src = situation.id;
-                relation.dest = pre.second.get<long>("ID");
+                long src = pre.second.get<long>("ID");
+                relation.src = src;
+                relation.dest = situation.id;
+                situation.causes.push_back(src);
                 relation.type = SituationRelation::H;
                 short relationValue = pre.second.get<short>("Relation");
                 switch (relationValue) {
@@ -66,6 +67,7 @@ void EventSource::initialize() {
                 SituationRelation relation;
                 relation.dest = situation.id;
                 relation.src = chd.second.get<long>("ID");
+                situation.evidences.push_back(chd.second.get<long>("ID"));
                 relation.type = SituationRelation::V;
                 short relationValue = chd.second.get<short>("Relation");
                 switch (relationValue) {
@@ -82,17 +84,18 @@ void EventSource::initialize() {
                 relations.push_back(relation);
             }
         }
+        situations.push_back(situation);
     }
 
-//    cout << "print situations" << endl;
-//    for (auto s : situations) {
-//        cout << s << endl;
-//    }
-//    cout << "print situation relations" << endl;
-//    cout << "relation size: " << relations.size() << endl;
-//    for (auto r : relations) {
-//        cout << r << endl;
-//    }
+    cout << "print situations" << endl;
+    for (auto s : situations) {
+        cout << s << endl;
+    }
+    cout << "print situation relations" << endl;
+    cout << "relation size: " << relations.size() << endl;
+    for (auto r : relations) {
+        cout << r << endl;
+    }
 }
 
 void EventSource::handleMessage(cMessage *msg) {

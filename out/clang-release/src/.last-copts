@@ -1,1 +1,0 @@
--O3 -DNDEBUG=1 -ffp-contract=off   -MMD -MP -MF .d    -isystem /opt/mingw64/include -Wno-deprecated-register -Wno-unused-function -fno-omit-frame-pointer -DWITH_QTENV -DWITH_NETBUILDER -DWITH_OSG -DOMNETPPLIBS_IMPORT  -IC:/Users/sunni/Workspace/boost_1_86_0 -IC:/omnetpp-6.0.3/include/omnetpp -I/c/omnetpp-6.0.3/include

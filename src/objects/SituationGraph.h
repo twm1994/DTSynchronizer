@@ -13,35 +13,31 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#ifndef __DTSYNCHRONIZER_EVENTSOURCE_H_
-#define __DTSYNCHRONIZER_EVENTSOURCE_H_
+#ifndef OBJECTS_SITUATIONGRAPH_H_
+#define OBJECTS_SITUATIONGRAPH_H_
 
-#include <omnetpp.h>
-#include "../common/Constants.h"
-#include "../objects/Sensor.h"
+#include <vector>
+#include <map>
+#include "../objects/SituationNode.h"
+#include "../objects/SituationRelation.h"
+#include "../objects/DirectedGraph.h"
 
-using namespace omnetpp;
 using namespace std;
-namespace pt = boost::property_tree;
 
-/**
- * TODO - Generated class
- */
-class EventSource: public cSimpleModule {
+class SituationGraph {
 private:
-    // <ID, event_emittor>
-    map<long, Sensor> sensors;
-    simtime_t min_event_cycle;
-
-    cMessage* EETimeout;
-
-protected:
-    virtual void initialize() override;
-    virtual void handleMessage(cMessage *msg) override;
+    map<long, SituationNode> situationMap;
+    typedef boost::tuple<long, long> edge_id;
+    map<edge_id, SituationRelation> relationMap;
+    vector<DirectedGraph> layers;
 
 public:
-    EventSource();
-    virtual ~EventSource();
+    SituationGraph();
+    void loadModel(const std::string &filename);
+    vector<SituationNode> getAllOperationalSitutions();
+    vector<SituationNode> getOperationalSitutions(long topNodeId);
+    virtual ~SituationGraph();
+    void print();
 };
 
-#endif
+#endif /* OBJECTS_SITUATIONGRAPH_H_ */

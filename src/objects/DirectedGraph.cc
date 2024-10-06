@@ -27,22 +27,6 @@ void DirectedGraph::add_edge(long src, long dest) {
     adjList[src].push_back(dest);
 }
 
-// Function to print the adjacency list representation of the graph
-void DirectedGraph::print() {
-    cout << "Adjacency list for the Graph: " << endl;
-    // Iterate over each vertex
-    for (auto i : adjList) {
-        // Print the vertex
-        cout << i.first << " -> ";
-        // Iterate over the connected vertices
-        for (auto j : i.second) {
-            // Print the connected vertex
-            cout << j << " ";
-        }
-        cout << endl;
-    }
-}
-
 void DirectedGraph::DFS_topological(unordered_map<long, bool> &visited, stack<long> &st, long node) {
     visited[node] = true;
 
@@ -52,7 +36,9 @@ void DirectedGraph::DFS_topological(unordered_map<long, bool> &visited, stack<lo
         }
     }
     //Pushing a node after all its connected elements are traversed.
-    st.push(node);
+    if(node != -1){
+        st.push(node);
+    }
     return;
 }
 
@@ -75,6 +61,23 @@ vector<long> DirectedGraph::topo_sort() {
     }
 
     return ans;
+}
+
+
+// Function to print the adjacency list representation of the graph
+void DirectedGraph::print() {
+    cout << "Adjacency list for the Graph: " << endl;
+    // Iterate over each vertex
+    for (auto i : adjList) {
+        // Print the vertex
+        cout << i.first << " -> ";
+        // Iterate over the connected vertices
+        for (auto j : i.second) {
+            // Print the connected vertex
+            cout << j << " ";
+        }
+        cout << endl;
+    }
 }
 
 DirectedGraph::~DirectedGraph() {

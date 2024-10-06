@@ -13,22 +13,11 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#ifndef __DTSYNCHRONIZER_SYNCHRONIZER_H_
-#define __DTSYNCHRONIZER_SYNCHRONIZER_H_
-
-#include <omnetpp.h>
-
-using namespace omnetpp;
-using namespace std;
-
-/**
- * TODO - Generated class
- */
-class Synchronizer : public cSimpleModule
-{
-  protected:
-    virtual void initialize() override;
-    virtual void handleMessage(cMessage *msg) override;
-};
-
-#endif
+//
+// TODO generated message class
+//
+packet Event {
+    long eventID;
+    bool toTrigger;
+	simtime_t timestamp;
+}

@@ -13,16 +13,25 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
+#include "../common/Constants.h"
+#include "../messages/event_m.h"
 #include "Synchronizer.h"
 
 Define_Module(Synchronizer);
 
-void Synchronizer::initialize()
-{
+void Synchronizer::initialize() {
     // TODO - Generated method body
 }
 
-void Synchronizer::handleMessage(cMessage *msg)
-{
-    // TODO - Generated method body
+void Synchronizer::handleMessage(cMessage *msg) {
+    if (msg->isName(msg::IOT_EVENT)) {
+        Event *event = check_and_cast<Event*>(msg);
+
+        cout << "event (" << event->getEventID() << "): toTrigger "
+                << event->getToTrigger() << ", timestamp "
+                << event->getTimestamp() << endl;
+
+        // delete the received msg
+        delete event;
+    }
 }

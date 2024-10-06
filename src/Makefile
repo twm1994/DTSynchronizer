@@ -34,16 +34,21 @@ O = $(PROJECT_OUTPUT_DIR)/$(CONFIGNAME)/$(PROJECTRELATIVE_PATH)
 
 # Object files for local .cc, .msg and .sm files
 OBJS = \
+    $O/common/Constants.o \
     $O/common/Util.o \
     $O/hosts/EventSource.o \
     $O/hosts/Simulator.o \
     $O/hosts/Synchronizer.o \
     $O/objects/DirectedGraph.o \
+    $O/objects/Sensor.o \
+    $O/objects/SituationGraph.o \
     $O/objects/SituationNode.o \
-    $O/objects/SituationRelation.o
+    $O/objects/SituationRelation.o \
+    $O/messages/event_m.o
 
 # Message files
-MSGFILES =
+MSGFILES = \
+    messages/event.msg
 
 # SM files
 SMFILES =

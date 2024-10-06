@@ -16,115 +16,76 @@
 #include <boost/json.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
-#include "boost/tuple/tuple.hpp"
-#include "boost/tuple/tuple_comparison.hpp"
-#include "boost/tuple/tuple_io.hpp"
-#include "../objects/SituationNode.h"
-#include "../objects/SituationRelation.h"
-#include "../objects/DirectedGraph.h"
+#include "../objects/SituationGraph.h"
+#include "../messages/event_m.h"
 #include "EventSource.h"
-
-// Short alias for this namespace
-namespace pt = boost::property_tree;
 
 Define_Module(EventSource);
 
+EventSource::EventSource(){
+    // 500 ms
+    min_event_cycle = 0.5;
+
+    EETimeout = new cMessage(msg::EE_TIMEOUT);
+}
+
+EventSource::~EventSource(){
+    if (EETimeout != NULL) {
+        cancelAndDelete(EETimeout);
+    }
+}
+
 void EventSource::initialize() {
+
+    /*
+     * Create event emitters
+     */
     // Create a root
     pt::ptree root;
     // Load the json file in this ptree
     pt::read_json("../files/SG.json", root);
-
-    std::map<long, SituationNode> situationMap;
-    typedef boost::tuple<long, long> edge_id;
-    std::map<edge_id, SituationRelation> relationMap;
-    std::vector<DirectedGraph> layers;
-
     for (pt::ptree::value_type &layer : root.get_child("layers")) {
-
-        std::map<long, SituationNode> layerMap;
-
         for (pt::ptree::value_type &node : layer.second) {
-
-            SituationNode situation;
-            situation.id = node.second.get<int>("ID");
-
-            if (!node.second.get_child("Predecessor").empty()) {
-                for (pt::ptree::value_type &pre : node.second.get_child(
-                        "Predecessor")) {
-                    SituationRelation relation;
-                    long src = pre.second.get<long>("ID");
-                    relation.src = src;
-                    relation.dest = situation.id;
-                    situation.causes.push_back(src);
-                    relation.type = SituationRelation::H;
-                    short relationValue = pre.second.get<short>("Relation");
-                    switch (relationValue) {
-                    case 1:
-                        relation.relation = SituationRelation::AND;
-                        break;
-                    case 2:
-                        relation.relation = SituationRelation::OR;
-                        break;
-                    default:
-                        relation.relation = SituationRelation::SOLE;
-                    }
-                    relation.weight = pre.second.get<double>("Weight-x");
-                    edge_id eid(src, relation.dest);
-                    relationMap[eid] = relation;
-                }
-            }
-
-            if (!node.second.get_child("Children").empty()) {
-                for (pt::ptree::value_type &chd : node.second.get_child(
-                        "Children")) {
-                    SituationRelation relation;
-                    long src = chd.second.get<long>("ID");
-                    relation.src = src;
-                    relation.dest = situation.id;
-                    situation.evidences.push_back(chd.second.get<long>("ID"));
-                    relation.type = SituationRelation::V;
-                    short relationValue = chd.second.get<short>("Relation");
-                    switch (relationValue) {
-                    case 1:
-                        relation.relation = SituationRelation::AND;
-                        break;
-                    case 2:
-                        relation.relation = SituationRelation::OR;
-                        break;
-                    default:
-                        relation.relation = SituationRelation::SOLE;
-                    }
-                    relation.weight = chd.second.get<double>("Weight-y");
-                    edge_id eid(src, relation.dest);
-                    relationMap[eid] = relation;
-                }
-            }
-
-            layerMap[situation.id] = situation;
-        }
-
-        DirectedGraph graph;
-        for (auto m : layerMap) {
-            SituationNode node = m.second;
-            for (auto p : node.causes) {
-                graph.add_edge(p, node.id);
+            if(!node.second.get_child("Cycle").empty()){
+                Sensor sensor;
+                sensor.id = node.second.get<long>("ID");
+                double cycle = node.second.get<long>("Cycle");
+                // cycle is in millisecond
+                sensor.cycle = SimTime(cycle/1000.0);
+                sensors[sensor.id] = sensor;
             }
         }
-//        graph.print();
-
-        situationMap.insert(layerMap.begin(), layerMap.end());
-        layers.push_back(graph);
     }
 
-//    for (auto m : situationMap) {
-//        cout << m.second;
-//    }
-//    for (auto m : relationMap) {
-//        cout << m.second;
+    // schedule event emission
+    scheduleAt(min_event_cycle, EETimeout);
+
+    /*
+     * Construct a situation graph
+     */
+    SituationGraph sg;
+    sg.loadModel("../files/SG.json");
+
+    vector<SituationNode> situations = sg.getAllOperationalSitutions();
+//    cout << "all operational situations: " << endl;
+    for(auto situation : situations){
+//        cout << situation;
+    }
+
+//    situations = sg.getOperationalSitutions(203);
+//    cout << "specific operational situations: " << endl;
+//    for(auto situation : situations){
+//        cout << situation;
 //    }
 }
 
 void EventSource::handleMessage(cMessage *msg) {
-    // TODO - Generated method body
+    if (msg->isName(msg::EE_TIMEOUT)) {
+        Event* event = new Event(msg::IOT_EVENT);
+
+        // send out the message
+        sendDelayed(event, 0.3, "out");
+
+        scheduleAt(simTime() + min_event_cycle, EETimeout);
+    }
 }

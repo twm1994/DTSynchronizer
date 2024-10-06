@@ -13,22 +13,15 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#ifndef __DTSYNCHRONIZER_SYNCHRONIZER_H_
-#define __DTSYNCHRONIZER_SYNCHRONIZER_H_
+#include "Sensor.h"
 
-#include <omnetpp.h>
+Sensor::Sensor() {
+    cycle = 0;
+    id = 0;
+    toTrigger = false;
+}
 
-using namespace omnetpp;
-using namespace std;
+Sensor::~Sensor() {
+    // TODO Auto-generated destructor stub
+}
 
-/**
- * TODO - Generated class
- */
-class Synchronizer : public cSimpleModule
-{
-  protected:
-    virtual void initialize() override;
-    virtual void handleMessage(cMessage *msg) override;
-};
-
-#endif

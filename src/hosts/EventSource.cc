@@ -111,19 +111,18 @@ void EventSource::initialize() {
                 graph.add_edge(p, node.id);
             }
         }
-        graph.print();
+//        graph.print();
 
         situationMap.insert(layerMap.begin(), layerMap.end());
         layers.push_back(graph);
     }
 
-    for (auto m : situationMap) {
-        cout << m.second;
-    }
-
-    for (auto m : relationMap) {
-        cout << m.second;
-    }
+//    for (auto m : situationMap) {
+//        cout << m.second;
+//    }
+//    for (auto m : relationMap) {
+//        cout << m.second;
+//    }
 }
 
 void EventSource::handleMessage(cMessage *msg) {

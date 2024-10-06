@@ -1,49 +1,53 @@
 {
-	"nodes": [
-	{
-		"ID": 201,
-		"Predecessor": null,
-		"Children": [{"ID": 101, "Weight-y": 0.98, "Relation": 1},{"ID": 102, "Weight-y": 0.98, "Relation": 1}]
-	},
-	{
-		"ID": 202,
-		"Predecessor": [{"ID": 201, "Weight-x": 0.98, "Relation": 0}],
-		"Children": [{"ID": 103, "Weight-y": 0.98, "Relation": 1},{"ID": 104, "Weight-y": 0.98, "Relation": 1}]
-	},
-	{
-		"ID": 203,
-		"Predecessor": [{"ID": 202, "Weight-x": 0.98, "Relation": 0}],
-		"Children": [{"ID": 105, "Weight-y": 0.98, "Relation": 1},{"ID": 106, "Weight-y": 0.98, "Relation": 1}]
-	},
-	{
-		"ID": 101,
-		"Predecessor": null,
-		"Children": null
-	},
-	{
-		"ID": 102,
-		"Predecessor": null,
-		"Children": null
-	},
-	{
-		"ID": 103,
-		"Predecessor": null,
-		"Children": null
-	},
-	{
-		"ID": 104,
-		"Predecessor": null,
-		"Children": null
-	},
-	{
-		"ID": 105,
-		"Predecessor": [{"ID": 104, "Weight-x": 0.98, "Relation": 0}],
-		"Children": null
-	},
-	{
-		"ID": 106,
-		"Predecessor": [{"ID": 104, "Weight-x": 0.98, "Relation": 1}, {"ID": 105, "Weight-x": 0.98, "Relation": 1}],
-		"Children": null
-	}
-	] 
+	"layers": [
+		[
+			{
+				"ID": 201,
+				"Predecessor": null,
+				"Children": [{"ID": 101, "Weight-y": 0.98, "Relation": 1},{"ID": 102, "Weight-y": 0.98, "Relation": 1}]
+			},
+			{
+				"ID": 202,
+				"Predecessor": [{"ID": 201, "Weight-x": 0.98, "Relation": 0}],
+				"Children": [{"ID": 103, "Weight-y": 0.98, "Relation": 1},{"ID": 104, "Weight-y": 0.98, "Relation": 1}]
+			},
+			{
+				"ID": 203,
+				"Predecessor": [{"ID": 202, "Weight-x": 0.98, "Relation": 0}],
+				"Children": [{"ID": 105, "Weight-y": 0.98, "Relation": 1},{"ID": 106, "Weight-y": 0.98, "Relation": 1}]
+			}
+		],
+		[
+			{
+				"ID": 101,
+				"Predecessor": null,
+				"Children": null
+			},
+			{
+				"ID": 102,
+				"Predecessor": null,
+				"Children": null
+			},
+			{
+				"ID": 103,
+				"Predecessor": null,
+				"Children": null
+			},
+			{
+				"ID": 104,
+				"Predecessor": null,
+				"Children": null
+			},
+			{
+				"ID": 105,
+				"Predecessor": [{"ID": 104, "Weight-x": 0.98, "Relation": 0}],
+				"Children": null
+			},
+			{
+				"ID": 106,
+				"Predecessor": [{"ID": 104, "Weight-x": 0.98, "Relation": 1}, {"ID": 105, "Weight-x": 0.98, "Relation": 1}],
+				"Children": null
+			}
+		] 
+	]
 }

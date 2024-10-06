@@ -34,7 +34,7 @@ public:
 
 inline std::ostream& operator<<(std::ostream &os, const SituationRelation &r) {
     return os << "relation (" << r.src << " -> " << r.dest << "): type "
-            << r.type << ", relation " << r.relation << ", weight " << r.weight;
+            << r.type << ", relation " << r.relation << ", weight " << r.weight << endl;
 }
 
 #endif /* OBJECTS_SITUATIONRELATION_H_ */

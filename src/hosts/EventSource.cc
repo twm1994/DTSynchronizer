@@ -16,8 +16,12 @@
 #include <boost/json.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include "boost/tuple/tuple.hpp"
+#include "boost/tuple/tuple_comparison.hpp"
+#include "boost/tuple/tuple_io.hpp"
 #include "../objects/SituationNode.h"
 #include "../objects/SituationRelation.h"
+#include "../objects/DirectedGraph.h"
 #include "EventSource.h"
 
 // Short alias for this namespace
@@ -31,70 +35,94 @@ void EventSource::initialize() {
     // Load the json file in this ptree
     pt::read_json("../files/SG.json", root);
 
-    std::vector<SituationNode> situations;
-    std::vector<SituationRelation> relations;
-    for (pt::ptree::value_type &node : root.get_child("nodes")) {
-        SituationNode situation;
-        situation.id = node.second.get<int>("ID");
+    std::map<long, SituationNode> situationMap;
+    typedef boost::tuple<long, long> edge_id;
+    std::map<edge_id, SituationRelation> relationMap;
+    std::vector<DirectedGraph> layers;
 
-        if (!node.second.get_child("Predecessor").empty()) {
-            for (pt::ptree::value_type &pre : node.second.get_child(
-                    "Predecessor")) {
-                SituationRelation relation;
-                long src = pre.second.get<long>("ID");
-                relation.src = src;
-                relation.dest = situation.id;
-                situation.causes.push_back(src);
-                relation.type = SituationRelation::H;
-                short relationValue = pre.second.get<short>("Relation");
-                switch (relationValue) {
-                case 1:
-                    relation.relation = SituationRelation::AND;
-                    break;
-                case 2:
-                    relation.relation = SituationRelation::OR;
-                    break;
-                default:
-                    relation.relation = SituationRelation::SOLE;
+    for (pt::ptree::value_type &layer : root.get_child("layers")) {
+
+        std::map<long, SituationNode> layerMap;
+
+        for (pt::ptree::value_type &node : layer.second) {
+
+            SituationNode situation;
+            situation.id = node.second.get<int>("ID");
+
+            if (!node.second.get_child("Predecessor").empty()) {
+                for (pt::ptree::value_type &pre : node.second.get_child(
+                        "Predecessor")) {
+                    SituationRelation relation;
+                    long src = pre.second.get<long>("ID");
+                    relation.src = src;
+                    relation.dest = situation.id;
+                    situation.causes.push_back(src);
+                    relation.type = SituationRelation::H;
+                    short relationValue = pre.second.get<short>("Relation");
+                    switch (relationValue) {
+                    case 1:
+                        relation.relation = SituationRelation::AND;
+                        break;
+                    case 2:
+                        relation.relation = SituationRelation::OR;
+                        break;
+                    default:
+                        relation.relation = SituationRelation::SOLE;
+                    }
+                    relation.weight = pre.second.get<double>("Weight-x");
+                    edge_id eid(src, relation.dest);
+                    relationMap[eid] = relation;
                 }
-                relation.weight = pre.second.get<double>("Weight-x");
-                relations.push_back(relation);
             }
+
+            if (!node.second.get_child("Children").empty()) {
+                for (pt::ptree::value_type &chd : node.second.get_child(
+                        "Children")) {
+                    SituationRelation relation;
+                    long src = chd.second.get<long>("ID");
+                    relation.src = src;
+                    relation.dest = situation.id;
+                    situation.evidences.push_back(chd.second.get<long>("ID"));
+                    relation.type = SituationRelation::V;
+                    short relationValue = chd.second.get<short>("Relation");
+                    switch (relationValue) {
+                    case 1:
+                        relation.relation = SituationRelation::AND;
+                        break;
+                    case 2:
+                        relation.relation = SituationRelation::OR;
+                        break;
+                    default:
+                        relation.relation = SituationRelation::SOLE;
+                    }
+                    relation.weight = chd.second.get<double>("Weight-y");
+                    edge_id eid(src, relation.dest);
+                    relationMap[eid] = relation;
+                }
+            }
+
+            layerMap[situation.id] = situation;
         }
 
-        if (!node.second.get_child("Children").empty()) {
-            for (pt::ptree::value_type &chd : node.second.get_child("Children")) {
-                SituationRelation relation;
-                relation.dest = situation.id;
-                relation.src = chd.second.get<long>("ID");
-                situation.evidences.push_back(chd.second.get<long>("ID"));
-                relation.type = SituationRelation::V;
-                short relationValue = chd.second.get<short>("Relation");
-                switch (relationValue) {
-                case 1:
-                    relation.relation = SituationRelation::AND;
-                    break;
-                case 2:
-                    relation.relation = SituationRelation::OR;
-                    break;
-                default:
-                    relation.relation = SituationRelation::SOLE;
-                }
-                relation.weight = chd.second.get<double>("Weight-y");
-                relations.push_back(relation);
+        DirectedGraph graph;
+        for (auto m : layerMap) {
+            SituationNode node = m.second;
+            for (auto p : node.causes) {
+                graph.add_edge(p, node.id);
             }
         }
-        situations.push_back(situation);
+        graph.print();
+
+        situationMap.insert(layerMap.begin(), layerMap.end());
+        layers.push_back(graph);
     }
 
-    cout << "print situations" << endl;
-    for (auto s : situations) {
-        cout << s << endl;
+    for (auto m : situationMap) {
+        cout << m.second;
     }
-    cout << "print situation relations" << endl;
-    cout << "relation size: " << relations.size() << endl;
-    for (auto r : relations) {
-        cout << r << endl;
+
+    for (auto m : relationMap) {
+        cout << m.second;
     }
 }
 

@@ -21,15 +21,18 @@
 #include <map>
 #include <unordered_map>
 #include <stack>
+#include <set>
 
 using namespace std;
 
 class DirectedGraph {
     map<long, list<long> > adjList; // Adjacency list to store the graph
+    set<long> verList;
 private:
     void DFS_topological(unordered_map<long, bool> &visited, stack<long> &st, long node);
 public:
     DirectedGraph();
+    void add_vertex(long vertex);
     // Function to add an edge between vertices u and v of the graph
     void add_edge(long src, long dist);
     // Function to print the adjacency list representation of the graph

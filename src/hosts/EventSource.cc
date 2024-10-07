@@ -67,9 +67,9 @@ void EventSource::initialize() {
     sg.loadModel("../files/SG.json");
 
     vector<SituationNode> situations = sg.getAllOperationalSitutions();
-//    cout << "all operational situations: " << endl;
+    cout << "all operational situations: " << endl;
     for(auto situation : situations){
-//        cout << situation;
+        cout << situation;
     }
 
 //    situations = sg.getOperationalSitutions(203);
@@ -81,6 +81,9 @@ void EventSource::initialize() {
 
 void EventSource::handleMessage(cMessage *msg) {
     if (msg->isName(msg::EE_TIMEOUT)) {
+
+
+
         Event* event = new Event(msg::IOT_EVENT);
 
         // send out the message

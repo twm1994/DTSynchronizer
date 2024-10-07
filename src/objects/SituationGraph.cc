@@ -134,24 +134,20 @@ void SituationGraph::loadModel(const std::string &filename) {
 
         DirectedGraph graph;
         for (auto m : layerMap) {
+            graph.add_vertex(m.first);
             SituationNode node = m.second;
-            if (!node.causes.empty()) {
-                for (auto p : node.causes) {
-                    graph.add_edge(p, node.id);
-                }
-            } else {
-                // -1 as the ID of a virtual node
-                graph.add_edge(-1, node.id);
+            for (auto p : node.causes) {
+                graph.add_edge(p, node.id);
             }
         }
-//        graph.print();
+        graph.print();
 
         situationMap.insert(layerMap.begin(), layerMap.end());
         layers.push_back(graph);
     }
 }
 
-void SituationGraph::print(){
+void SituationGraph::print() {
     for (auto m : situationMap) {
         cout << m.second;
     }

@@ -14,11 +14,16 @@
 // 
 
 #include <iostream>
+#include <algorithm>
 #include "DirectedGraph.h"
 
 DirectedGraph::DirectedGraph() {
     // TODO Auto-generated constructor stub
 
+}
+
+void DirectedGraph::add_vertex(long vertex){
+    verList.insert(vertex);
 }
 
 // Function to add an edge from vertices u to v of the graph
@@ -60,23 +65,43 @@ vector<long> DirectedGraph::topo_sort() {
         st.pop();
     }
 
+    // add orphon vertices at the beginning of the vector to return
+    int i = 0;
+    for(auto vertex : verList){
+        if(find(ans.begin(), ans.end(), vertex) == ans.end()){
+            ans.insert(ans.begin() + i, vertex);
+            i++;
+        }
+    }
+
     return ans;
 }
 
 
 // Function to print the adjacency list representation of the graph
 void DirectedGraph::print() {
+    set<long> printed;
     cout << "Adjacency list for the Graph: " << endl;
     // Iterate over each vertex
     for (auto i : adjList) {
         // Print the vertex
         cout << i.first << " -> ";
+        printed.insert((long)i.first);
         // Iterate over the connected vertices
         for (auto j : i.second) {
             // Print the connected vertex
             cout << j << " ";
+            printed.insert((long)j);
         }
         cout << endl;
+    }
+
+    // print orphon vertices
+    for(auto vertex : verList){
+        auto it = printed.find(vertex);
+        if(it == printed.end()){
+            cout << vertex << endl;
+        }
     }
 }
 

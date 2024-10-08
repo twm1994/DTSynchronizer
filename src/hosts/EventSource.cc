@@ -13,10 +13,12 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
+#include <algorithm>
 #include <boost/json.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
-#include "../objects/SituationGraph.h"
+#include "../common/Constants.h"
+#include "../objects/PhysicalOperation.h"
 #include "../messages/event_m.h"
 #include "EventSource.h"
 
@@ -37,57 +39,32 @@ EventSource::~EventSource(){
 
 void EventSource::initialize() {
 
-    /*
-     * Create event emitters
-     */
-    // Create a root
-    pt::ptree root;
-    // Load the json file in this ptree
-    pt::read_json("../files/SG.json", root);
-    for (pt::ptree::value_type &layer : root.get_child("layers")) {
-        for (pt::ptree::value_type &node : layer.second) {
-            if(!node.second.get_child("Cycle").empty()){
-                Sensor sensor;
-                sensor.id = node.second.get<long>("ID");
-                double cycle = node.second.get<long>("Cycle");
-                // cycle is in millisecond
-                sensor.cycle = SimTime(cycle/1000.0);
-                sensors[sensor.id] = sensor;
-            }
-        }
-    }
-
     // schedule event emission
     scheduleAt(min_event_cycle, EETimeout);
 
     /*
-     * Construct a situation graph
+     * Construct a situation graph and its instance
      */
-    SituationGraph sg;
-    sg.loadModel("../files/SG.json");
+    sa.initModel("../files/SG.json");
 
-    vector<SituationNode> situations = sg.getAllOperationalSitutions();
-    cout << "all operational situations: " << endl;
-    for(auto situation : situations){
-        cout << situation;
-    }
-
-//    situations = sg.getOperationalSitutions(203);
-//    cout << "specific operational situations: " << endl;
-//    for(auto situation : situations){
-//        cout << situation;
-//    }
+//    sa.print();
 }
 
 void EventSource::handleMessage(cMessage *msg) {
     if (msg->isName(msg::EE_TIMEOUT)) {
 
+        vector<PhysicalOperation> operations = sa.evolve(simTime());
+        for(auto operation : operations){
+            Event* event = new Event(msg::IOT_EVENT);
 
+            event->setEventID(operation.id);
+            event->setToTrigger(operation.toTrigger);
+            event->setTimestamp(operation.timestamp);
 
-        Event* event = new Event(msg::IOT_EVENT);
+            // send out the message
+            sendDelayed(event, 0.1, "out");
 
-        // send out the message
-        sendDelayed(event, 0.3, "out");
+        }
 
         scheduleAt(simTime() + min_event_cycle, EETimeout);
     }

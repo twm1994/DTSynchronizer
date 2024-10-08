@@ -40,10 +40,14 @@ OBJS = \
     $O/hosts/Simulator.o \
     $O/hosts/Synchronizer.o \
     $O/objects/DirectedGraph.o \
-    $O/objects/Sensor.o \
+    $O/objects/Operation.o \
+    $O/objects/PhysicalOperation.o \
+    $O/objects/SituationArranger.o \
     $O/objects/SituationGraph.o \
+    $O/objects/SituationInstance.o \
     $O/objects/SituationNode.o \
     $O/objects/SituationRelation.o \
+    $O/objects/VirtualOperation.o \
     $O/messages/event_m.o
 
 # Message files

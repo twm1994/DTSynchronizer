@@ -13,15 +13,25 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#include "Sensor.h"
+#ifndef COMMON_RANDOMCLASS_H_
+#define COMMON_RANDOMCLASS_H_
 
-Sensor::Sensor() {
-    cycle = 0;
-    id = 0;
-    toTrigger = false;
-}
+#include <stdlib.h>     /* srand, rand */
+#include <time.h>       /* time */
 
-Sensor::~Sensor() {
-    // TODO Auto-generated destructor stub
-}
+class RandomClass {
+public:
+    RandomClass() {
+        /* initialize random seed: */
+        srand(time(0));
+    }
 
+    double NextDecimal() {
+        double r = ((double) rand() / (RAND_MAX)) + 1;
+        return r;
+    }
+};
+
+RandomClass Random;
+
+#endif /* COMMON_RANDOMCLASS_H_ */

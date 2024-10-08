@@ -13,21 +13,26 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#ifndef OBJECTS_SENSOR_H_
-#define OBJECTS_SENSOR_H_
+#include "SituationInstance.h"
 
-#include <omnetpp.h>
+SituationInstance::SituationInstance() {
+    id = -1;
+    counter = 0;
+    state = State::UNTRIGGERED;
+    cycle = 0;
+    next_start = 0;
+}
 
-using namespace omnetpp;
+SituationInstance::SituationInstance(long id, simtime_t duration, simtime_t cycle){
+    this->id = id;
+    this->counter = 0;
+    this->state = State::UNTRIGGERED;
+    this->duration = duration;
+    this->cycle = cycle;
+    this->next_start = cycle;
+}
 
-class Sensor {
-public:
-    simtime_t cycle;
-    long id;
-    bool toTrigger;
-public:
-    Sensor();
-    virtual ~Sensor();
-};
+SituationInstance::~SituationInstance() {
+    // TODO Auto-generated destructor stub
+}
 
-#endif /* OBJECTS_SENSOR_H_ */

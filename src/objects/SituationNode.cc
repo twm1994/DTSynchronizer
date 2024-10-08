@@ -9,8 +9,6 @@
 
 SituationNode::SituationNode() {
     id = -1;
-    counter = 0;
-    state = 0;
     threshold = 0;
 }
 

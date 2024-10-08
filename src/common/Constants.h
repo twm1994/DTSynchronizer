@@ -18,10 +18,10 @@
 
 // message names
 namespace msg {
-// message names
-extern const char* IOT_EVENT;
-// timeout event names
-extern const char* EE_TIMEOUT;
+    // message names
+    extern const char* IOT_EVENT;
+    // timeout event names
+    extern const char* EE_TIMEOUT;
 }
 
 

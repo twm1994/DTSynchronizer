@@ -13,33 +13,14 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#ifndef __DTSYNCHRONIZER_EVENTSOURCE_H_
-#define __DTSYNCHRONIZER_EVENTSOURCE_H_
+#include "PhysicalOperation.h"
 
-#include <omnetpp.h>
-#include <map>
-#include <vector>
-#include "../objects/SituationArranger.h"
+PhysicalOperation::PhysicalOperation() :
+        Operation() {
+    toTrigger = false;
+}
 
-using namespace std;
-using namespace omnetpp;
+PhysicalOperation::~PhysicalOperation() {
 
-/**
- *
- */
-class EventSource: public cSimpleModule {
-private:
-    simtime_t min_event_cycle;
-    cMessage* EETimeout;
-    SituationArranger sa;
+}
 
-protected:
-    virtual void initialize() override;
-    virtual void handleMessage(cMessage *msg) override;
-
-public:
-    EventSource();
-    virtual ~EventSource();
-};
-
-#endif

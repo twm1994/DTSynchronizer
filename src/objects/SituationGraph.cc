@@ -13,6 +13,7 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
+#include <omnetpp.h>
 #include <stack>
 #include <boost/json.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -20,30 +21,31 @@
 #include "boost/tuple/tuple.hpp"
 #include "boost/tuple/tuple_comparison.hpp"
 #include "boost/tuple/tuple_io.hpp"
+#include "SituationArranger.h"
 #include "SituationGraph.h"
 
+using namespace omnetpp;
 namespace pt = boost::property_tree;
 
 SituationGraph::SituationGraph() {
     // TODO Auto-generated constructor stub
-
 }
 
-vector<SituationNode> SituationGraph::getAllOperationalSitutions() {
-    vector<SituationNode> operational_situations;
-    DirectedGraph bottom = layers[layers.size() - 1];
+vector<long> SituationGraph::getAllOperationalSitutions() {
+    vector<long> operational_situations;
+    DirectedGraph& bottom = layers[layers.size() - 1];
     vector<long> bottom_nodes = bottom.topo_sort();
     for (auto node : bottom_nodes) {
-        SituationNode operational_situation = situationMap[node];
-        operational_situations.push_back(operational_situation);
+        SituationNode& operational_situation = situationMap[node];
+        operational_situations.push_back(operational_situation.id);
     }
     return operational_situations;
 }
 
-vector<SituationNode> SituationGraph::getOperationalSitutions(long topNodeId) {
-    vector<SituationNode> operational_situations;
+vector<long> SituationGraph::getOperationalSitutions(long topNodeId) {
+    vector<long> operational_situations;
 
-    SituationNode topNode = situationMap[topNodeId];
+    SituationNode& topNode = situationMap[topNodeId];
     stack<SituationNode> toChecks;
     toChecks.push(topNode);
     while (!toChecks.empty()) {
@@ -55,31 +57,41 @@ vector<SituationNode> SituationGraph::getOperationalSitutions(long topNodeId) {
                 toChecks.push(evidence);
             }
         } else {
-            operational_situations.push_back(toCheck);
+            operational_situations.push_back(toCheck.id);
         }
     }
 
     return operational_situations;
 }
 
-void SituationGraph::loadModel(const std::string &filename) {
+void SituationGraph::loadModel(const std::string &filename, SituationArranger* arranger) {
     // Create a root
     pt::ptree root;
     // Load the json file in this ptree
     pt::read_json(filename, root);
 
-    for (pt::ptree::value_type &layer : root.get_child("layers")) {
+    for (pt::ptree::value_type & layer : root.get_child("layers")) {
 
         std::map<long, SituationNode> layerMap;
 
-        for (pt::ptree::value_type &node : layer.second) {
+        for (pt::ptree::value_type & node : layer.second) {
 
             SituationNode situation;
-            situation.id = node.second.get<long>("ID");
+            long id = node.second.get<long>("ID");
+            situation.id = id;
 
-            if (!node.second.get_child("Predecessor").empty()) {
+            double duration = node.second.get<double>("Duration") / 1000.0;
+            if(node.second.get<string>("Cycle") != "null"){
+                // cycle is in millisecond
+                double cycle = node.second.get<double>("Cycle") / 1000.0;
+                arranger->addInstance(id, SimTime(duration), SimTime(cycle));
+            }else{
+                arranger->addInstance(id, SimTime(duration));
+            }
+
+            if (!node.second.get_child("Predecessors").empty()) {
                 for (pt::ptree::value_type &pre : node.second.get_child(
-                        "Predecessor")) {
+                        "Predecessors")) {
                     SituationRelation relation;
                     long src = pre.second.get<long>("ID");
                     relation.src = src;
@@ -104,7 +116,7 @@ void SituationGraph::loadModel(const std::string &filename) {
             }
 
             if (!node.second.get_child("Children").empty()) {
-                for (pt::ptree::value_type &chd : node.second.get_child(
+                for (pt::ptree::value_type & chd : node.second.get_child(
                         "Children")) {
                     SituationRelation relation;
                     long src = chd.second.get<long>("ID");
@@ -135,16 +147,24 @@ void SituationGraph::loadModel(const std::string &filename) {
         DirectedGraph graph;
         for (auto m : layerMap) {
             graph.add_vertex(m.first);
-            SituationNode node = m.second;
+            SituationNode& node = m.second;
             for (auto p : node.causes) {
                 graph.add_edge(p, node.id);
             }
         }
-        graph.print();
+//        graph.print();
 
         situationMap.insert(layerMap.begin(), layerMap.end());
         layers.push_back(graph);
     }
+}
+
+DirectedGraph& SituationGraph::getLayer (int index){
+    return layers[index];
+}
+
+SituationNode& SituationGraph::getNode(long id){
+    return situationMap[id];
 }
 
 void SituationGraph::print() {

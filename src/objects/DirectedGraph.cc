@@ -65,7 +65,7 @@ vector<long> DirectedGraph::topo_sort() {
         st.pop();
     }
 
-    // add orphon vertices at the beginning of the vector to return
+    // add orphan vertices at the beginning of the vector to return
     int i = 0;
     for(auto vertex : verList){
         if(find(ans.begin(), ans.end(), vertex) == ans.end()){
@@ -96,7 +96,7 @@ void DirectedGraph::print() {
         cout << endl;
     }
 
-    // print orphon vertices
+    // print orphan vertices
     for(auto vertex : verList){
         auto it = printed.find(vertex);
         if(it == printed.end()){

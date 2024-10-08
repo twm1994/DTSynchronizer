@@ -18,11 +18,18 @@
 
 #include <vector>
 #include <map>
-#include "../objects/SituationNode.h"
-#include "../objects/SituationRelation.h"
-#include "../objects/DirectedGraph.h"
+#include "boost/tuple/tuple.hpp"
+#include "boost/tuple/tuple_comparison.hpp"
+#include "boost/tuple/tuple_io.hpp"
+#include "SituationNode.h"
+#include "SituationRelation.h"
+#include "DirectedGraph.h"
 
 using namespace std;
+using namespace boost::tuples;
+
+// forward declaration
+class SituationArranger;
 
 class SituationGraph {
 private:
@@ -33,11 +40,13 @@ private:
 
 public:
     SituationGraph();
-    void loadModel(const std::string &filename);
-    vector<SituationNode> getAllOperationalSitutions();
-    vector<SituationNode> getOperationalSitutions(long topNodeId);
-    virtual ~SituationGraph();
+    void loadModel(const std::string &filename, SituationArranger* arrangeer);
+    vector<long> getAllOperationalSitutions();
+    vector<long> getOperationalSitutions(long topNodeId);
+    DirectedGraph& getLayer (int index);
+    SituationNode& getNode(long id);
     void print();
+    virtual ~SituationGraph();
 };
 
 #endif /* OBJECTS_SITUATIONGRAPH_H_ */

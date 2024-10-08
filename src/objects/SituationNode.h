@@ -15,8 +15,6 @@ using namespace std;
 class SituationNode {
 public:
     long id;
-    int counter;
-    short state; // 0 - untriggered, 1 - triggered
     double threshold;
     vector<long> causes;
     vector<long> evidences;
@@ -26,8 +24,7 @@ public:
 };
 
 inline std::ostream& operator<<(std::ostream &os, const SituationNode &s) {
-    os << "situation (" << s.id << "): counter " << s.counter
-            << ", state " << s.state << ", threshold " << s.threshold << endl;
+    os << "situation (" << s.id << "): threshold " << s.threshold << endl;
     os << "causes (" << s.causes.size() << "): ";
     for(auto cause : s.causes){
         os << cause << ", ";

@@ -13,33 +13,14 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#ifndef __DTSYNCHRONIZER_EVENTSOURCE_H_
-#define __DTSYNCHRONIZER_EVENTSOURCE_H_
+#include "VirtualOperation.h"
 
-#include <omnetpp.h>
-#include <map>
-#include <vector>
-#include "../objects/SituationArranger.h"
+VirtualOperation::VirtualOperation() {
+    // TODO Auto-generated constructor stub
 
-using namespace std;
-using namespace omnetpp;
+}
 
-/**
- *
- */
-class EventSource: public cSimpleModule {
-private:
-    simtime_t min_event_cycle;
-    cMessage* EETimeout;
-    SituationArranger sa;
+VirtualOperation::~VirtualOperation() {
+    // TODO Auto-generated destructor stub
+}
 
-protected:
-    virtual void initialize() override;
-    virtual void handleMessage(cMessage *msg) override;
-
-public:
-    EventSource();
-    virtual ~EventSource();
-};
-
-#endif

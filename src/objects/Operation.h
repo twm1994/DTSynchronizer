@@ -13,33 +13,20 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#ifndef __DTSYNCHRONIZER_EVENTSOURCE_H_
-#define __DTSYNCHRONIZER_EVENTSOURCE_H_
+#ifndef OBJECTS_OPERATION_H_
+#define OBJECTS_OPERATION_H_
 
 #include <omnetpp.h>
-#include <map>
-#include <vector>
-#include "../objects/SituationArranger.h"
 
-using namespace std;
 using namespace omnetpp;
 
-/**
- *
- */
-class EventSource: public cSimpleModule {
-private:
-    simtime_t min_event_cycle;
-    cMessage* EETimeout;
-    SituationArranger sa;
-
-protected:
-    virtual void initialize() override;
-    virtual void handleMessage(cMessage *msg) override;
-
+class Operation {
 public:
-    EventSource();
-    virtual ~EventSource();
+    long id;
+    simtime_t timestamp;
+public:
+    Operation();
+    virtual ~Operation();
 };
 
-#endif
+#endif /* OBJECTS_OPERATION_H_ */

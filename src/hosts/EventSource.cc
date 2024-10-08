@@ -20,6 +20,7 @@
 #include "../common/Constants.h"
 #include "../objects/PhysicalOperation.h"
 #include "../messages/event_m.h"
+#include "../transport/LatencyGenerator.h"
 #include "EventSource.h"
 
 Define_Module(EventSource);
@@ -61,8 +62,10 @@ void EventSource::handleMessage(cMessage *msg) {
             event->setToTrigger(operation.toTrigger);
             event->setTimestamp(operation.timestamp);
 
+            LatencyGenerator lg;
+            simtime_t latency = lg.generator_latency();
             // send out the message
-            sendDelayed(event, 0.1, "out");
+            sendDelayed(event, latency, "out");
 
         }
 

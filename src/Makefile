@@ -48,6 +48,7 @@ OBJS = \
     $O/objects/SituationNode.o \
     $O/objects/SituationRelation.o \
     $O/objects/VirtualOperation.o \
+    $O/transport/LatencyGenerator.o \
     $O/messages/event_m.o
 
 # Message files

@@ -13,3 +13,5 @@ In each layer, there are multipe JSON objects, representing situation nodes. Eac
 Predecessors and Children contain the causes and evidences of a situation respectively. They could be null if empty. 
 
 Duration is the length of a situation, which could be 0 for a transient situation. Cycle is the time gap between two sitaution occurrences, which could be set to empty or 0 to represent no-gap.
+
+Currently, **it is assumed that each observable situaiton is only related to one state variable, which, however, is not restricted in principle**.

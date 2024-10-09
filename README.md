@@ -1,4 +1,4 @@
-# DT Synchronization OMNeT++ Simulation for Experiments
+# DT Synchronization OMNeT++ Simulation
 
 ## 1. Libraries & Dependencies
 

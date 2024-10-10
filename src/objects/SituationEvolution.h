@@ -13,36 +13,33 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#ifndef __DTSYNCHRONIZER_EVENTSOURCE_H_
-#define __DTSYNCHRONIZER_EVENTSOURCE_H_
+#ifndef OBJECTS_SITUATIONEVOLUTION_H_
+#define OBJECTS_SITUATIONEVOLUTION_H_
 
 #include <omnetpp.h>
 #include <map>
+#include <set>
 #include <vector>
-#include "../objects/SituationArranger.h"
-#include "../transport/LatencyGenerator.h"
+#include "SituationInstance.h"
+#include "PhysicalOperation.h"
+#include "SituationGraph.h"
 
-using namespace std;
 using namespace omnetpp;
+using namespace std;
 
-/**
- *
- */
-class EventSource: public cSimpleModule {
-private:
-    simtime_t min_event_cycle;
-    // event generation timeout
-    cMessage* EGTimeout;
-    LatencyGenerator lg;
-    SituationArranger sa;
-
+class SituationEvolution {
 protected:
-    virtual void initialize() override;
-    virtual void handleMessage(cMessage *msg) override;
-
+    SituationGraph sg;
+    map<int, SituationInstance> instanceMap;
 public:
-    EventSource();
-    virtual ~EventSource();
+    SituationEvolution();
+    void initModel(const char* model_path);
+    // return a list of operations as operational situations
+    void addInstance(long id, simtime_t duration = 0, simtime_t cycle = 0);
+    SituationInstance& getInstance(long id);
+    SituationGraph& getModel();
+    void print();
+    virtual ~SituationEvolution();
 };
 
-#endif
+#endif /* OBJECTS_SITUATIONEVOLUTION_H_ */

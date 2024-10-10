@@ -14,24 +14,15 @@
 // 
 
 #include "../common/RandomClass.h"
+#include "../common/Util.h"
 #include "SituationArranger.h"
 
-SituationArranger::SituationArranger() {
+SituationArranger::SituationArranger() : SituationEvolution() {
 }
 
-void SituationArranger::initModel(const char *model_path) {
-    sg.loadModel(model_path, this);
-}
+vector<PhysicalOperation> SituationArranger::arrange(simtime_t current) {
 
-void SituationArranger::addInstance(long id, simtime_t duration,
-        simtime_t cycle) {
-    SituationInstance si(id, duration, cycle);
-    instanceMap[si.id] = si;
-}
-
-vector<PhysicalOperation> SituationArranger::evolve(simtime_t current) {
-
-//    cout << endl << "current: " << current << endl;
+    cout << endl << "current in Arranger: " << current << endl;
 
     vector<PhysicalOperation> operations;
 
@@ -39,11 +30,11 @@ vector<PhysicalOperation> SituationArranger::evolve(simtime_t current) {
      * Build a list of triggerable top-layer situations
      */
     set<long> triggerables;
-    DirectedGraph &top = sg.getLayer(0);
+    DirectedGraph top = sg.getLayer(0);
     vector<long> topNodes = top.topo_sort();
 
     for (auto node : topNodes) {
-        SituationNode &s = sg.getNode(node);
+        SituationNode s = sg.getNode(node);
         SituationInstance &si = instanceMap[node];
         if (s.causes.empty()) {
             triggerables.insert(si.id);
@@ -71,9 +62,9 @@ vector<PhysicalOperation> SituationArranger::evolve(simtime_t current) {
         SituationInstance &ti = instanceMap[triggerable];
 
         if (ti.state == SituationInstance::UNTRIGGERED) {
-            if (ti.next_start <= current && Random.NextDecimal() > 0.0) {
+            if (ti.next_start <= current && Random.NextDecimal() > 0.7) {
 
-//                cout << "trigger situation " << ti.id << endl;
+                cout << "trigger situation " << ti.id << endl;
 
                 ti.state = SituationInstance::TRIGGERED;
                 vector<long> tBottoms = sg.getOperationalSitutions(triggerable);
@@ -104,7 +95,7 @@ vector<PhysicalOperation> SituationArranger::evolve(simtime_t current) {
 
             if (allTriggered && ti.next_start + ti.duration <= current) {
 
-//                cout << "reset situation " << ti.id << endl;
+                cout << "reset situation " << ti.id << endl;
 
                 ti.state = SituationInstance::UNTRIGGERED;
                 ti.counter++;
@@ -128,10 +119,8 @@ vector<PhysicalOperation> SituationArranger::evolve(simtime_t current) {
         }
     }
 
-//    cout << "print tOpStiuations" << endl;
-//    for (auto e : tOpStiuations) {
-//        cout << e << endl;
-//    }
+//    cout << "print triggerable operational stiuations: ";
+//    util::printSet(tOpStiuations);
 
     vector<long> bottoms = sg.getAllOperationalSitutions();
 
@@ -140,10 +129,6 @@ vector<PhysicalOperation> SituationArranger::evolve(simtime_t current) {
 
         // cycle match check
         simtime_t value = fmod(current, bi.cycle);
-
-//        cout << "bi.cycle: " << bi.cycle << endl;
-//        cout << "fmod(current, bi.cycle) = " << value << endl;
-
         if (value == 0) {
             PhysicalOperation s;
             s.id = bi.id;
@@ -151,15 +136,10 @@ vector<PhysicalOperation> SituationArranger::evolve(simtime_t current) {
             s.toTrigger = false;
             auto it = tOpStiuations.find(bi.id);
             if (it != tOpStiuations.end()) {
-
-//                cout << bi.id << " can be triggered" << endl;
-
                 if (bi.state == SituationInstance::TRIGGERED) {
                     bi.counter++;
                     bi.state = SituationInstance::UNTRIGGERED;
                     s.toTrigger = true;
-
-//                    cout << "to trigger an operational situation" << endl;
                 }
             }
             operations.push_back(s);
@@ -169,12 +149,6 @@ vector<PhysicalOperation> SituationArranger::evolve(simtime_t current) {
     }
 
     return operations;
-}
-
-void SituationArranger::print() {
-    for (auto m : instanceMap) {
-        cout << m.second;
-    }
 }
 
 SituationArranger::~SituationArranger() {

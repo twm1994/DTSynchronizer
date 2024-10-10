@@ -13,6 +13,8 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
+#include "../common/Constants.h"
+#include "../messages/SimEvent_m.h"
 #include "Simulator.h"
 
 Define_Module(Simulator);
@@ -24,5 +26,13 @@ void Simulator::initialize()
 
 void Simulator::handleMessage(cMessage *msg)
 {
-    // TODO - Generated method body
+    if (msg->isName(msg::SIM_EVENT)) {
+        SimEvent *event = check_and_cast<SimEvent*>(msg);
+
+        cout << "Simulation event (" << event->getEventID() << "): timestamp "
+                << event->getTimestamp() << endl;
+
+        // delete the received msg
+        delete event;
+    }
 }

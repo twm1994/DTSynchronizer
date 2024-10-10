@@ -17,6 +17,9 @@
 #define __DTSYNCHRONIZER_SYNCHRONIZER_H_
 
 #include <omnetpp.h>
+#include "../objects/SituationReasoner.h"
+#include "../objects/TriggeringEventGenerator.h"
+#include "../transport/LatencyGenerator.h"
 
 using namespace omnetpp;
 using namespace std;
@@ -24,11 +27,30 @@ using namespace std;
 /**
  * TODO - Generated class
  */
-class Synchronizer : public cSimpleModule
-{
-  protected:
+class Synchronizer: public cSimpleModule {
+private:
+    // cycle to check durable situations
+    simtime_t check_cycle;
+    // time slice
+    simtime_t slice_cycle;
+    // situation evolution timeout
+    cMessage* SETimeout;
+    // situation check timeout
+    cMessage* SCTimeout;
+
+    SituationReasoner sr;
+    TriggeringEventGenerator teg;
+    LatencyGenerator lg;
+    // <situation_ID, trigger_counter>
+    map<long, int> bufferCounters;
+
+protected:
     virtual void initialize() override;
     virtual void handleMessage(cMessage *msg) override;
+
+public:
+    Synchronizer();
+    virtual ~Synchronizer();
 };
 
 #endif

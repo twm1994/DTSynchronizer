@@ -29,4 +29,9 @@ public:
     virtual ~Operation();
 };
 
+inline std::ostream& operator<<(std::ostream &os, const Operation &o) {
+    os << "Operation [" << o.id << "]: timestamp " << o.timestamp;
+    return os;
+}
+
 #endif /* OBJECTS_OPERATION_H_ */

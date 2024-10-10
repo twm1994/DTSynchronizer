@@ -15,7 +15,8 @@
 
 #include "VirtualOperation.h"
 
-VirtualOperation::VirtualOperation() {
+VirtualOperation::VirtualOperation() :
+        Operation() {
     // TODO Auto-generated constructor stub
 
 }

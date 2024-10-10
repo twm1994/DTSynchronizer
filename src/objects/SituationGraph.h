@@ -29,7 +29,7 @@ using namespace std;
 using namespace boost::tuples;
 
 // forward declaration
-class SituationArranger;
+class SituationEvolution;
 
 class SituationGraph {
 private:
@@ -40,11 +40,12 @@ private:
 
 public:
     SituationGraph();
-    void loadModel(const std::string &filename, SituationArranger* arrangeer);
+    void loadModel(const std::string &filename, SituationEvolution* arrangeer);
     vector<long> getAllOperationalSitutions();
     vector<long> getOperationalSitutions(long topNodeId);
-    DirectedGraph& getLayer (int index);
-    SituationNode& getNode(long id);
+    DirectedGraph getLayer (int index);
+    int modelHeight();
+    SituationNode getNode(long id);
     void print();
     virtual ~SituationGraph();
 };

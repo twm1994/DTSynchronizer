@@ -1,5 +1,5 @@
 //
-// Generated file, do not edit! Created by opp_msgtool 6.0 from messages/event.msg.
+// Generated file, do not edit! Created by opp_msgtool 6.0 from messages/SimEvent.msg.
 //
 
 // Disable warnings about unused variables, empty switch stmts, etc:
@@ -28,7 +28,7 @@
 #include <sstream>
 #include <memory>
 #include <type_traits>
-#include "event_m.h"
+#include "SimEvent_m.h"
 
 namespace omnetpp {
 
@@ -150,22 +150,22 @@ void doParsimUnpacking(omnetpp::cCommBuffer *, T& t)
 
 }  // namespace omnetpp
 
-Register_Class(Event)
+Register_Class(SimEvent)
 
-Event::Event(const char *name, short kind) : ::omnetpp::cPacket(name, kind)
+SimEvent::SimEvent(const char *name, short kind) : ::omnetpp::cPacket(name, kind)
 {
 }
 
-Event::Event(const Event& other) : ::omnetpp::cPacket(other)
+SimEvent::SimEvent(const SimEvent& other) : ::omnetpp::cPacket(other)
 {
     copy(other);
 }
 
-Event::~Event()
+SimEvent::~SimEvent()
 {
 }
 
-Event& Event::operator=(const Event& other)
+SimEvent& SimEvent::operator=(const SimEvent& other)
 {
     if (this == &other) return *this;
     ::omnetpp::cPacket::operator=(other);
@@ -173,71 +173,57 @@ Event& Event::operator=(const Event& other)
     return *this;
 }
 
-void Event::copy(const Event& other)
+void SimEvent::copy(const SimEvent& other)
 {
     this->eventID = other.eventID;
-    this->toTrigger = other.toTrigger;
     this->timestamp = other.timestamp;
 }
 
-void Event::parsimPack(omnetpp::cCommBuffer *b) const
+void SimEvent::parsimPack(omnetpp::cCommBuffer *b) const
 {
     ::omnetpp::cPacket::parsimPack(b);
     doParsimPacking(b,this->eventID);
-    doParsimPacking(b,this->toTrigger);
     doParsimPacking(b,this->timestamp);
 }
 
-void Event::parsimUnpack(omnetpp::cCommBuffer *b)
+void SimEvent::parsimUnpack(omnetpp::cCommBuffer *b)
 {
     ::omnetpp::cPacket::parsimUnpack(b);
     doParsimUnpacking(b,this->eventID);
-    doParsimUnpacking(b,this->toTrigger);
     doParsimUnpacking(b,this->timestamp);
 }
 
-long Event::getEventID() const
+long SimEvent::getEventID() const
 {
     return this->eventID;
 }
 
-void Event::setEventID(long eventID)
+void SimEvent::setEventID(long eventID)
 {
     this->eventID = eventID;
 }
 
-bool Event::getToTrigger() const
-{
-    return this->toTrigger;
-}
-
-void Event::setToTrigger(bool toTrigger)
-{
-    this->toTrigger = toTrigger;
-}
-
-omnetpp::simtime_t Event::getTimestamp() const
+omnetpp::simtime_t SimEvent::getTimestamp() const
 {
     return this->timestamp;
 }
 
-void Event::setTimestamp(omnetpp::simtime_t timestamp)
+void SimEvent::setTimestamp(omnetpp::simtime_t timestamp)
 {
     this->timestamp = timestamp;
 }
 
-class EventDescriptor : public omnetpp::cClassDescriptor
+class SimEventDescriptor : public omnetpp::cClassDescriptor
 {
   private:
     mutable const char **propertyNames;
     enum FieldConstants {
         FIELD_eventID,
-        FIELD_toTrigger,
         FIELD_timestamp,
     };
   public:
-    EventDescriptor();
-    virtual ~EventDescriptor();
+    SimEventDescriptor();
+    virtual ~SimEventDescriptor();
 
     virtual bool doesSupport(omnetpp::cObject *obj) const override;
     virtual const char **getPropertyNames() const override;
@@ -263,24 +249,24 @@ class EventDescriptor : public omnetpp::cClassDescriptor
     virtual void setFieldStructValuePointer(omnetpp::any_ptr object, int field, int i, omnetpp::any_ptr ptr) const override;
 };
 
-Register_ClassDescriptor(EventDescriptor)
+Register_ClassDescriptor(SimEventDescriptor)
 
-EventDescriptor::EventDescriptor() : omnetpp::cClassDescriptor(omnetpp::opp_typename(typeid(Event)), "omnetpp::cPacket")
+SimEventDescriptor::SimEventDescriptor() : omnetpp::cClassDescriptor(omnetpp::opp_typename(typeid(SimEvent)), "omnetpp::cPacket")
 {
     propertyNames = nullptr;
 }
 
-EventDescriptor::~EventDescriptor()
+SimEventDescriptor::~SimEventDescriptor()
 {
     delete[] propertyNames;
 }
 
-bool EventDescriptor::doesSupport(omnetpp::cObject *obj) const
+bool SimEventDescriptor::doesSupport(omnetpp::cObject *obj) const
 {
-    return dynamic_cast<Event *>(obj)!=nullptr;
+    return dynamic_cast<SimEvent *>(obj)!=nullptr;
 }
 
-const char **EventDescriptor::getPropertyNames() const
+const char **SimEventDescriptor::getPropertyNames() const
 {
     if (!propertyNames) {
         static const char *names[] = {  nullptr };
@@ -291,19 +277,19 @@ const char **EventDescriptor::getPropertyNames() const
     return propertyNames;
 }
 
-const char *EventDescriptor::getProperty(const char *propertyName) const
+const char *SimEventDescriptor::getProperty(const char *propertyName) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     return base ? base->getProperty(propertyName) : nullptr;
 }
 
-int EventDescriptor::getFieldCount() const
+int SimEventDescriptor::getFieldCount() const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
-    return base ? 3+base->getFieldCount() : 3;
+    return base ? 2+base->getFieldCount() : 2;
 }
 
-unsigned int EventDescriptor::getFieldTypeFlags(int field) const
+unsigned int SimEventDescriptor::getFieldTypeFlags(int field) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     if (base) {
@@ -313,13 +299,12 @@ unsigned int EventDescriptor::getFieldTypeFlags(int field) const
     }
     static unsigned int fieldTypeFlags[] = {
         FD_ISEDITABLE,    // FIELD_eventID
-        FD_ISEDITABLE,    // FIELD_toTrigger
         FD_ISEDITABLE,    // FIELD_timestamp
     };
-    return (field >= 0 && field < 3) ? fieldTypeFlags[field] : 0;
+    return (field >= 0 && field < 2) ? fieldTypeFlags[field] : 0;
 }
 
-const char *EventDescriptor::getFieldName(int field) const
+const char *SimEventDescriptor::getFieldName(int field) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     if (base) {
@@ -329,23 +314,21 @@ const char *EventDescriptor::getFieldName(int field) const
     }
     static const char *fieldNames[] = {
         "eventID",
-        "toTrigger",
         "timestamp",
     };
-    return (field >= 0 && field < 3) ? fieldNames[field] : nullptr;
+    return (field >= 0 && field < 2) ? fieldNames[field] : nullptr;
 }
 
-int EventDescriptor::findField(const char *fieldName) const
+int SimEventDescriptor::findField(const char *fieldName) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     int baseIndex = base ? base->getFieldCount() : 0;
     if (strcmp(fieldName, "eventID") == 0) return baseIndex + 0;
-    if (strcmp(fieldName, "toTrigger") == 0) return baseIndex + 1;
-    if (strcmp(fieldName, "timestamp") == 0) return baseIndex + 2;
+    if (strcmp(fieldName, "timestamp") == 0) return baseIndex + 1;
     return base ? base->findField(fieldName) : -1;
 }
 
-const char *EventDescriptor::getFieldTypeString(int field) const
+const char *SimEventDescriptor::getFieldTypeString(int field) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     if (base) {
@@ -355,13 +338,12 @@ const char *EventDescriptor::getFieldTypeString(int field) const
     }
     static const char *fieldTypeStrings[] = {
         "long",    // FIELD_eventID
-        "bool",    // FIELD_toTrigger
         "omnetpp::simtime_t",    // FIELD_timestamp
     };
-    return (field >= 0 && field < 3) ? fieldTypeStrings[field] : nullptr;
+    return (field >= 0 && field < 2) ? fieldTypeStrings[field] : nullptr;
 }
 
-const char **EventDescriptor::getFieldPropertyNames(int field) const
+const char **SimEventDescriptor::getFieldPropertyNames(int field) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     if (base) {
@@ -374,7 +356,7 @@ const char **EventDescriptor::getFieldPropertyNames(int field) const
     }
 }
 
-const char *EventDescriptor::getFieldProperty(int field, const char *propertyName) const
+const char *SimEventDescriptor::getFieldProperty(int field, const char *propertyName) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     if (base) {
@@ -387,7 +369,7 @@ const char *EventDescriptor::getFieldProperty(int field, const char *propertyNam
     }
 }
 
-int EventDescriptor::getFieldArraySize(omnetpp::any_ptr object, int field) const
+int SimEventDescriptor::getFieldArraySize(omnetpp::any_ptr object, int field) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     if (base) {
@@ -395,13 +377,13 @@ int EventDescriptor::getFieldArraySize(omnetpp::any_ptr object, int field) const
             return base->getFieldArraySize(object, field);
         field -= base->getFieldCount();
     }
-    Event *pp = omnetpp::fromAnyPtr<Event>(object); (void)pp;
+    SimEvent *pp = omnetpp::fromAnyPtr<SimEvent>(object); (void)pp;
     switch (field) {
         default: return 0;
     }
 }
 
-void EventDescriptor::setFieldArraySize(omnetpp::any_ptr object, int field, int size) const
+void SimEventDescriptor::setFieldArraySize(omnetpp::any_ptr object, int field, int size) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     if (base) {
@@ -411,13 +393,13 @@ void EventDescriptor::setFieldArraySize(omnetpp::any_ptr object, int field, int 
         }
         field -= base->getFieldCount();
     }
-    Event *pp = omnetpp::fromAnyPtr<Event>(object); (void)pp;
+    SimEvent *pp = omnetpp::fromAnyPtr<SimEvent>(object); (void)pp;
     switch (field) {
-        default: throw omnetpp::cRuntimeError("Cannot set array size of field %d of class 'Event'", field);
+        default: throw omnetpp::cRuntimeError("Cannot set array size of field %d of class 'SimEvent'", field);
     }
 }
 
-const char *EventDescriptor::getFieldDynamicTypeString(omnetpp::any_ptr object, int field, int i) const
+const char *SimEventDescriptor::getFieldDynamicTypeString(omnetpp::any_ptr object, int field, int i) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     if (base) {
@@ -425,13 +407,13 @@ const char *EventDescriptor::getFieldDynamicTypeString(omnetpp::any_ptr object, 
             return base->getFieldDynamicTypeString(object,field,i);
         field -= base->getFieldCount();
     }
-    Event *pp = omnetpp::fromAnyPtr<Event>(object); (void)pp;
+    SimEvent *pp = omnetpp::fromAnyPtr<SimEvent>(object); (void)pp;
     switch (field) {
         default: return nullptr;
     }
 }
 
-std::string EventDescriptor::getFieldValueAsString(omnetpp::any_ptr object, int field, int i) const
+std::string SimEventDescriptor::getFieldValueAsString(omnetpp::any_ptr object, int field, int i) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     if (base) {
@@ -439,16 +421,15 @@ std::string EventDescriptor::getFieldValueAsString(omnetpp::any_ptr object, int 
             return base->getFieldValueAsString(object,field,i);
         field -= base->getFieldCount();
     }
-    Event *pp = omnetpp::fromAnyPtr<Event>(object); (void)pp;
+    SimEvent *pp = omnetpp::fromAnyPtr<SimEvent>(object); (void)pp;
     switch (field) {
         case FIELD_eventID: return long2string(pp->getEventID());
-        case FIELD_toTrigger: return bool2string(pp->getToTrigger());
         case FIELD_timestamp: return simtime2string(pp->getTimestamp());
         default: return "";
     }
 }
 
-void EventDescriptor::setFieldValueAsString(omnetpp::any_ptr object, int field, int i, const char *value) const
+void SimEventDescriptor::setFieldValueAsString(omnetpp::any_ptr object, int field, int i, const char *value) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     if (base) {
@@ -458,16 +439,15 @@ void EventDescriptor::setFieldValueAsString(omnetpp::any_ptr object, int field, 
         }
         field -= base->getFieldCount();
     }
-    Event *pp = omnetpp::fromAnyPtr<Event>(object); (void)pp;
+    SimEvent *pp = omnetpp::fromAnyPtr<SimEvent>(object); (void)pp;
     switch (field) {
         case FIELD_eventID: pp->setEventID(string2long(value)); break;
-        case FIELD_toTrigger: pp->setToTrigger(string2bool(value)); break;
         case FIELD_timestamp: pp->setTimestamp(string2simtime(value)); break;
-        default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'Event'", field);
+        default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'SimEvent'", field);
     }
 }
 
-omnetpp::cValue EventDescriptor::getFieldValue(omnetpp::any_ptr object, int field, int i) const
+omnetpp::cValue SimEventDescriptor::getFieldValue(omnetpp::any_ptr object, int field, int i) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     if (base) {
@@ -475,16 +455,15 @@ omnetpp::cValue EventDescriptor::getFieldValue(omnetpp::any_ptr object, int fiel
             return base->getFieldValue(object,field,i);
         field -= base->getFieldCount();
     }
-    Event *pp = omnetpp::fromAnyPtr<Event>(object); (void)pp;
+    SimEvent *pp = omnetpp::fromAnyPtr<SimEvent>(object); (void)pp;
     switch (field) {
         case FIELD_eventID: return (omnetpp::intval_t)(pp->getEventID());
-        case FIELD_toTrigger: return pp->getToTrigger();
         case FIELD_timestamp: return pp->getTimestamp().dbl();
-        default: throw omnetpp::cRuntimeError("Cannot return field %d of class 'Event' as cValue -- field index out of range?", field);
+        default: throw omnetpp::cRuntimeError("Cannot return field %d of class 'SimEvent' as cValue -- field index out of range?", field);
     }
 }
 
-void EventDescriptor::setFieldValue(omnetpp::any_ptr object, int field, int i, const omnetpp::cValue& value) const
+void SimEventDescriptor::setFieldValue(omnetpp::any_ptr object, int field, int i, const omnetpp::cValue& value) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     if (base) {
@@ -494,16 +473,15 @@ void EventDescriptor::setFieldValue(omnetpp::any_ptr object, int field, int i, c
         }
         field -= base->getFieldCount();
     }
-    Event *pp = omnetpp::fromAnyPtr<Event>(object); (void)pp;
+    SimEvent *pp = omnetpp::fromAnyPtr<SimEvent>(object); (void)pp;
     switch (field) {
         case FIELD_eventID: pp->setEventID(omnetpp::checked_int_cast<long>(value.intValue())); break;
-        case FIELD_toTrigger: pp->setToTrigger(value.boolValue()); break;
         case FIELD_timestamp: pp->setTimestamp(value.doubleValue()); break;
-        default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'Event'", field);
+        default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'SimEvent'", field);
     }
 }
 
-const char *EventDescriptor::getFieldStructName(int field) const
+const char *SimEventDescriptor::getFieldStructName(int field) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     if (base) {
@@ -516,7 +494,7 @@ const char *EventDescriptor::getFieldStructName(int field) const
     };
 }
 
-omnetpp::any_ptr EventDescriptor::getFieldStructValuePointer(omnetpp::any_ptr object, int field, int i) const
+omnetpp::any_ptr SimEventDescriptor::getFieldStructValuePointer(omnetpp::any_ptr object, int field, int i) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     if (base) {
@@ -524,13 +502,13 @@ omnetpp::any_ptr EventDescriptor::getFieldStructValuePointer(omnetpp::any_ptr ob
             return base->getFieldStructValuePointer(object, field, i);
         field -= base->getFieldCount();
     }
-    Event *pp = omnetpp::fromAnyPtr<Event>(object); (void)pp;
+    SimEvent *pp = omnetpp::fromAnyPtr<SimEvent>(object); (void)pp;
     switch (field) {
         default: return omnetpp::any_ptr(nullptr);
     }
 }
 
-void EventDescriptor::setFieldStructValuePointer(omnetpp::any_ptr object, int field, int i, omnetpp::any_ptr ptr) const
+void SimEventDescriptor::setFieldStructValuePointer(omnetpp::any_ptr object, int field, int i, omnetpp::any_ptr ptr) const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
     if (base) {
@@ -540,9 +518,9 @@ void EventDescriptor::setFieldStructValuePointer(omnetpp::any_ptr object, int fi
         }
         field -= base->getFieldCount();
     }
-    Event *pp = omnetpp::fromAnyPtr<Event>(object); (void)pp;
+    SimEvent *pp = omnetpp::fromAnyPtr<SimEvent>(object); (void)pp;
     switch (field) {
-        default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'Event'", field);
+        default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'SimEvent'", field);
     }
 }
 

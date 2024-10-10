@@ -16,7 +16,9 @@ Duration is the length of a situation, which could be 0 for a transient situatio
 
 Currently, ***it is assumed that each observable situaiton is only related to one state variable, which, however, is not restricted in principle***.
 
-## 3. Notes: most functions are not fully implemented, or implemented in a workaround way, including: 
+## 3. Implementation Notes
+
+Most functions are not fully implemented, or implemented in a workaround way, including: 
 
 1) In SituationReasoner, the *reason* method hasn't implemented situation inference.
 

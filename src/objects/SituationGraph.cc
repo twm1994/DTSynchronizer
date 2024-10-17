@@ -21,7 +21,7 @@
 #include "boost/tuple/tuple.hpp"
 #include "boost/tuple/tuple_comparison.hpp"
 #include "boost/tuple/tuple_io.hpp"
-#include "SituationArranger.h"
+#include "SituationEvolution.h"
 #include "SituationGraph.h"
 
 using namespace omnetpp;
@@ -64,7 +64,7 @@ vector<long> SituationGraph::getOperationalSitutions(long topNodeId) {
     return operational_situations;
 }
 
-void SituationGraph::loadModel(const std::string &filename, SituationArranger* arranger) {
+void SituationGraph::loadModel(const std::string &filename, SituationEvolution* se) {
     // Create a root
     pt::ptree root;
     // Load the json file in this ptree
@@ -84,9 +84,9 @@ void SituationGraph::loadModel(const std::string &filename, SituationArranger* a
             if(node.second.get<string>("Cycle") != "null"){
                 // cycle is in millisecond
                 double cycle = node.second.get<double>("Cycle") / 1000.0;
-                arranger->addInstance(id, SimTime(duration), SimTime(cycle));
+                se->addInstance(id, SimTime(duration), SimTime(cycle));
             }else{
-                arranger->addInstance(id, SimTime(duration));
+                se->addInstance(id, SimTime(duration));
             }
 
             if (!node.second.get_child("Predecessors").empty()) {
@@ -159,12 +159,16 @@ void SituationGraph::loadModel(const std::string &filename, SituationArranger* a
     }
 }
 
-DirectedGraph& SituationGraph::getLayer (int index){
+DirectedGraph SituationGraph::getLayer (int index){
     return layers[index];
 }
 
-SituationNode& SituationGraph::getNode(long id){
+SituationNode SituationGraph::getNode(long id){
     return situationMap[id];
+}
+
+int SituationGraph::modelHeight(){
+    return layers.size();
 }
 
 void SituationGraph::print() {

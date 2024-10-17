@@ -15,3 +15,15 @@ Predecessors and Children contain the causes and evidences of a situation respec
 Duration is the length of a situation, which could be 0 for a transient situation. Cycle is the time gap between two sitaution occurrences, which could be set to empty or 0 to represent no-gap.
 
 Currently, ***it is assumed that each observable situaiton is only related to one state variable, which, however, is not restricted in principle***.
+
+## 3. Implementation Notes
+
+Most functions are not fully implemented, or implemented in a workaround way, including: 
+
+1) In SituationReasoner, the *reason* method hasn't implemented situation inference.
+
+2) In Synchronzier, the reasoning result from calling SituationReasoner's *reason* method contains a list of triggered observable situations,  which is supposed to tell *TEG* to generate the corresponding simulation events.
+
+3) In the *generateTriggeringEvents* method of TriggeringEventGenerator, the event merge function is only an over-simplified implementation.
+
+4) The *generateTriggeringEvents* method of TriggeringEventGenerator is supposed to use the function parameter *cycleTriggered* to generate events for sync failure, and add them to mergedEvents, which hasn't been implemented yet.

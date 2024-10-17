@@ -27,7 +27,7 @@ public:
     }
 
     double NextDecimal() {
-        double r = ((double) rand() / (RAND_MAX)) + 1;
+        double r = ((double) rand() / (RAND_MAX));
         return r;
     }
 };

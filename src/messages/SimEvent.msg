@@ -13,28 +13,10 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#ifndef CONSTANTS_H_
-#define CONSTANTS_H_
-
-// message names
-namespace msg {
-    /*
-     * message names
-     */
-    // physical operation event
-    extern const char* IOT_EVENT;
-    // virtual operation event
-    extern const char* SIM_EVENT;
-    /*
-     * timeout event names
-     */
-    // event generation timeout
-    extern const char* EG_TIMEOUT;
-    // situation evolution timeout
-    extern const char* SE_TIMEOUT;
-    // situation check timeout
-    extern const char* SC_TIMEOUT;
+//
+// TODO generated message class
+//
+packet SimEvent {
+    long eventID;
+	simtime_t timestamp;
 }
-
-
-#endif /* CONSTANTS_H_ */

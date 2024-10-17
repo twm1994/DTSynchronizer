@@ -13,29 +13,28 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#ifndef OBJECTS_SITUATIONARRANGER_H_
-#define OBJECTS_SITUATIONARRANGER_H_
+#ifndef OBJECTS_TRIGGERINGEVENTGENERATOR_H_
+#define OBJECTS_TRIGGERINGEVENTGENERATOR_H_
 
-#include <omnetpp.h>
-#include <map>
-#include <set>
 #include <vector>
-#include "SituationInstance.h"
-#include "PhysicalOperation.h"
+#include <queue>
 #include "SituationGraph.h"
 #include "SituationEvolution.h"
+#include "OperationalEvent.h"
+#include "VirtualOperation.h"
 
-using namespace omnetpp;
-using namespace std;
-
-class SituationArranger: public SituationEvolution {
+class TriggeringEventGenerator {
 private:
-    // triggerable operational situations
-    set<long> tOpStiuations;
+    SituationGraph sg;
+    SituationEvolution* se;
+    map<long, vector<OperationalEvent>> eventQueue;
 public:
-    SituationArranger();
-    vector<PhysicalOperation> arrange(simtime_t current);
-    virtual ~SituationArranger();
+    TriggeringEventGenerator();
+    void setModel(SituationGraph sg);
+    void setModelInstance(SituationEvolution* se);
+    void cacheEvent(long eventId, bool toTrigger, simtime_t timestamp);
+    queue<vector<VirtualOperation>> generateTriggeringEvents(set<long> cycleTriggered);
+    virtual ~TriggeringEventGenerator();
 };
 
-#endif /* OBJECTS_SITUATIONARRANGER_H_ */
+#endif /* OBJECTS_TRIGGERINGEVENTGENERATOR_H_ */

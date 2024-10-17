@@ -13,29 +13,36 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#ifndef OBJECTS_SITUATIONARRANGER_H_
-#define OBJECTS_SITUATIONARRANGER_H_
-
-#include <omnetpp.h>
-#include <map>
-#include <set>
-#include <vector>
-#include "SituationInstance.h"
-#include "PhysicalOperation.h"
-#include "SituationGraph.h"
 #include "SituationEvolution.h"
 
-using namespace omnetpp;
-using namespace std;
+SituationEvolution::SituationEvolution() {
 
-class SituationArranger: public SituationEvolution {
-private:
-    // triggerable operational situations
-    set<long> tOpStiuations;
-public:
-    SituationArranger();
-    vector<PhysicalOperation> arrange(simtime_t current);
-    virtual ~SituationArranger();
-};
+}
 
-#endif /* OBJECTS_SITUATIONARRANGER_H_ */
+SituationEvolution::~SituationEvolution() {
+    // TODO Auto-generated destructor stub
+}
+
+void SituationEvolution::initModel(const char *model_path) {
+    sg.loadModel(model_path, this);
+}
+
+void SituationEvolution::addInstance(long id, simtime_t duration,
+        simtime_t cycle) {
+    SituationInstance si(id, duration, cycle);
+    instanceMap[si.id] = si;
+}
+
+SituationInstance& SituationEvolution::getInstance(long id){
+    return instanceMap[id];
+}
+
+SituationGraph& SituationEvolution::getModel(){
+    return sg;
+}
+
+void SituationEvolution::print() {
+    for (auto m : instanceMap) {
+        cout << m.second;
+    }
+}

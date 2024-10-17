@@ -13,28 +13,24 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#ifndef CONSTANTS_H_
-#define CONSTANTS_H_
+#ifndef OBJECTS_SITUATIONREASONER_H_
+#define OBJECTS_SITUATIONREASONER_H_
 
-// message names
-namespace msg {
-    /*
-     * message names
-     */
-    // physical operation event
-    extern const char* IOT_EVENT;
-    // virtual operation event
-    extern const char* SIM_EVENT;
-    /*
-     * timeout event names
-     */
-    // event generation timeout
-    extern const char* EG_TIMEOUT;
-    // situation evolution timeout
-    extern const char* SE_TIMEOUT;
-    // situation check timeout
-    extern const char* SC_TIMEOUT;
-}
+#include <omnetpp.h>
+#include "SituationEvolution.h"
 
+using namespace omnetpp;
+using namespace std;
 
-#endif /* CONSTANTS_H_ */
+class SituationReasoner: public SituationEvolution {
+private:
+public:
+    SituationReasoner();
+    // return a set of triggered operational situations
+    set<long> reason(set<long> triggered, simtime_t current);
+    // reset durable situations if timeout
+    void checkState(simtime_t current);
+    virtual ~SituationReasoner();
+};
+
+#endif /* OBJECTS_SITUATIONREASONER_H_ */

@@ -19,56 +19,54 @@
 #include <boost/property_tree/json_parser.hpp>
 #include "../common/Constants.h"
 #include "../objects/PhysicalOperation.h"
-#include "../messages/event_m.h"
-#include "../transport/LatencyGenerator.h"
+#include "../messages/IoTEvent_m.h"
 #include "EventSource.h"
 
 Define_Module(EventSource);
 
 EventSource::EventSource(){
-    // 500 ms
-    min_event_cycle = 0.5;
-
-    EETimeout = new cMessage(msg::EE_TIMEOUT);
-}
-
-EventSource::~EventSource(){
-    if (EETimeout != NULL) {
-        cancelAndDelete(EETimeout);
-    }
-}
-
-void EventSource::initialize() {
-
-    // schedule event emission
-    scheduleAt(min_event_cycle, EETimeout);
-
     /*
      * Construct a situation graph and its instance
      */
     sa.initModel("../files/SG.json");
 
 //    sa.print();
+
+    // 500 ms
+    min_event_cycle = 0.5;
+
+    EGTimeout = new cMessage(msg::EG_TIMEOUT);
+}
+
+EventSource::~EventSource(){
+    if (EGTimeout != NULL) {
+        cancelAndDelete(EGTimeout);
+    }
+}
+
+void EventSource::initialize() {
+
+    // schedule IoT event generation
+    scheduleAt(min_event_cycle, EGTimeout);
 }
 
 void EventSource::handleMessage(cMessage *msg) {
-    if (msg->isName(msg::EE_TIMEOUT)) {
+    if (msg->isName(msg::EG_TIMEOUT)) {
 
-        vector<PhysicalOperation> operations = sa.evolve(simTime());
+        vector<PhysicalOperation> operations = sa.arrange(simTime());
         for(auto operation : operations){
-            Event* event = new Event(msg::IOT_EVENT);
+            IoTEvent* event = new IoTEvent(msg::IOT_EVENT);
 
             event->setEventID(operation.id);
             event->setToTrigger(operation.toTrigger);
             event->setTimestamp(operation.timestamp);
 
-            LatencyGenerator lg;
             simtime_t latency = lg.generator_latency();
             // send out the message
             sendDelayed(event, latency, "out");
 
         }
 
-        scheduleAt(simTime() + min_event_cycle, EETimeout);
+        scheduleAt(simTime() + min_event_cycle, EGTimeout);
     }
 }

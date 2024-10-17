@@ -14,24 +14,118 @@
 // 
 
 #include "../common/Constants.h"
-#include "../messages/event_m.h"
+#include "../common/Util.h"
+#include "../messages/IoTEvent_m.h"
+#include "../messages/SimEvent_m.h"
 #include "Synchronizer.h"
 
 Define_Module(Synchronizer);
 
+Synchronizer::Synchronizer() {
+    /*
+     * Construct a situation graph and a situation inference engine
+     */
+    sr.initModel("../files/SG.json");
+    teg.setModel(sr.getModel());
+    teg.setModelInstance(&sr);
+
+    // 500 ms
+    check_cycle = 0.5;
+    // 3000 ms
+    slice_cycle = 3;
+
+    SETimeout = new cMessage(msg::SE_TIMEOUT);
+    SCTimeout = new cMessage(msg::SC_TIMEOUT);
+}
+
+Synchronizer::~Synchronizer() {
+    if (SETimeout != NULL) {
+        cancelAndDelete(SETimeout);
+    }
+    if (SCTimeout != NULL) {
+        cancelAndDelete(SCTimeout);
+    }
+}
+
 void Synchronizer::initialize() {
-    // TODO - Generated method body
+    // schedule situation evolution
+    scheduleAt(check_cycle, SCTimeout);
+    scheduleAt(slice_cycle, SETimeout);
 }
 
 void Synchronizer::handleMessage(cMessage *msg) {
     if (msg->isName(msg::IOT_EVENT)) {
-        Event *event = check_and_cast<Event*>(msg);
+        IoTEvent *event = check_and_cast<IoTEvent*>(msg);
 
-        cout << "event (" << event->getEventID() << "): toTrigger "
+        cout << "IoT event (" << event->getEventID() << "): toTrigger "
                 << event->getToTrigger() << ", timestamp "
                 << event->getTimestamp() << endl;
 
-        // delete the received msg
+        /*
+         * By rights, all received IoT events needs to be cached for regression if needed.
+         * Here, temporarily only triggering events are maintained for simplicity.
+         */
+        if (event->getToTrigger()) {
+            teg.cacheEvent(event->getEventID(), event->getToTrigger(),
+                    event->getTimestamp());
+
+            long id = event->getEventID();
+            if (bufferCounters.count(id)) {
+                bufferCounters[id]++;
+            } else {
+                bufferCounters[id] = 1;
+            }
+        }
+
+        // free up memory space
         delete event;
+    } else if (msg->isName(msg::SE_TIMEOUT)) {
+
+        simtime_t current = simTime();
+
+        cout << endl << "current time slice: " << current << endl;
+
+        set<long> triggered;
+
+//        cout << "print buffer counters: ";
+//        util::printMap(bufferCounters);
+
+        for (auto bufferCounter : bufferCounters) {
+            if (bufferCounter.second > 0) {
+                triggered.insert(bufferCounter.first);
+                bufferCounters[bufferCounter.first]--;
+            }
+        }
+
+        /*
+         * The reasoning result contains a list of triggered observable situations,
+         * which is supposed to tell TEG to generate the corresponding simulation events.
+         */
+        set<long> tOperations = sr.reason(triggered, current);
+
+        queue<vector<VirtualOperation>> opSets = teg.generateTriggeringEvents(
+                tOperations);
+
+        cout << "Triggering event sets are: " << endl;
+        util::printComplexQueue(opSets);
+
+        while (!opSets.empty()) {
+            vector<VirtualOperation> operations = opSets.front();
+            for (auto op : operations) {
+                SimEvent *event = new SimEvent(msg::SIM_EVENT);
+                event->setEventID(op.id);
+                event->setTimestamp(op.timestamp);
+                simtime_t latency = lg.generator_latency();
+                // send out the message
+                sendDelayed(event, latency, "out");
+            }
+
+            opSets.pop();
+        }
+
+        scheduleAt(simTime() + slice_cycle, SETimeout);
+    } else if (msg->isName(msg::SC_TIMEOUT)) {
+        sr.checkState(SimTime());
+        scheduleAt(simTime() + check_cycle, SCTimeout);
     }
 }

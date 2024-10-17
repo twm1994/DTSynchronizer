@@ -13,4 +13,25 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#include "Util.h"
+#ifndef OBJECTS_OPERATIONALEVENT_H_
+#define OBJECTS_OPERATIONALEVENT_H_
+
+#include "Operation.h"
+
+class OperationalEvent: public Operation {
+public:
+    // state variable ID
+    long svId;
+    bool toTrigger;
+public:
+    OperationalEvent();
+    virtual ~OperationalEvent();
+};
+
+inline std::ostream& operator<<(std::ostream &os, const OperationalEvent &o) {
+    os << "Operational Event [" << o.id << "]: svID " << o.svId << " toTrigger "
+            << o.toTrigger << " timestamp " << o.timestamp;
+    return os;
+}
+
+#endif /* OBJECTS_OPERATIONALEVENT_H_ */

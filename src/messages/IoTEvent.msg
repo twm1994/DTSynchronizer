@@ -16,7 +16,7 @@
 //
 // TODO generated message class
 //
-packet Event {
+packet IoTEvent {
     long eventID;
     bool toTrigger;
 	simtime_t timestamp;

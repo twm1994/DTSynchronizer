@@ -25,13 +25,18 @@ using namespace omnetpp;
 class SituationInstance {
 public:
     enum State {
-        TRIGGERED, UNTRIGGERED
+        UNTRIGGERED, TRIGGERED
     };
     long id;
     int counter;
     State state; // 0 - untriggered, 1 - triggered
     simtime_t duration;
     simtime_t cycle;
+    /*
+     * a multi-purpose variable:
+     * 1) next situation start time in Arranger, and
+     * 2) current situation start time in Reasoner.
+     */
     simtime_t next_start;
 
 public:

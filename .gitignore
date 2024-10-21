@@ -2,7 +2,7 @@
 *.exe
 **out/clang-debug
 **out/clang-release
-**cproject
+##**cproject
 *nedexclusions
 *nedfolders
 *oppbuildspec
@@ -17,3 +17,6 @@ simulations**
 /src/messages/*cc
 .oppfeaturestate
 **dbg
+**compile_flags.txt
+**DTSynchronizer
+class-diagram.png

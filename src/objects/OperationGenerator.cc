@@ -114,33 +114,6 @@ queue<vector<VirtualOperation>> OperationGenerator::generateOperations(set<long>
                 newVoMap[id] = vo.second;
             }
 
-//            vector<long> causes = node.causes;
-//            if(!causes.empty()){
-//                bool sameSlice = false;
-//                for(auto cause : causes){
-//                    if(topMap.count(cause) > 0){
-//                        SituationInstance& cInstance = se->getInstance(cause);
-//                        /*
-//                         * check whether causes have been triggered in the last time slice
-//                         */
-//                        if(cInstance.counter == instance.counter){
-//                            VirtualOperation& co = topMap[cause];
-//                            newVoMap[cause] = co;
-//                            sameSlice = true;
-//                        }
-//                    }else{
-//                        break;  // TODO why break instead of continue?
-////                        continue;
-//                    }
-//                }
-//                if(sameSlice){
-//                    hasCause = true;
-//                }
-//            }else{
-//                // migrate causes and no-cause operations to a new operation set
-//                newVoMap[id] = vo.second;
-//            }
-
         }
 
         if(hasCause){

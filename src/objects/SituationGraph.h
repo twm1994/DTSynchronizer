@@ -37,12 +37,16 @@ private:
     typedef boost::tuple<long, long> edge_id;
     map<edge_id, SituationRelation> relationMap;
     vector<DirectedGraph> layers;
+    // reachability index
+    vector<vector<bool>> *ri;
 
+    void buildReachabilityMatrix(set<long>& vertices, set<edge_id>& edges);
 public:
     SituationGraph();
-    void loadModel(const std::string &filename, SituationEvolution* arrangeer);
     vector<long> getAllOperationalSitutions();
     vector<long> getOperationalSitutions(long topNodeId);
+    bool isReachable(long src, long dest);
+    void loadModel(const std::string &filename, SituationEvolution* arrangeer);
     DirectedGraph getLayer (int index);
     int modelHeight();
     SituationNode getNode(long id);

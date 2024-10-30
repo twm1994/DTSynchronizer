@@ -22,7 +22,7 @@ SituationArranger::SituationArranger() : SituationEvolution() {
 
 vector<PhysicalOperation> SituationArranger::arrange(simtime_t current) {
 
-    cout << endl << "current in Arranger: " << current << endl;
+    cout << endl << "current time in Arranger: " << current << endl;
 
     vector<PhysicalOperation> operations;
 

@@ -19,10 +19,9 @@
 
 DirectedGraph::DirectedGraph() {
     // TODO Auto-generated constructor stub
-
 }
 
-void DirectedGraph::add_vertex(long vertex){
+void DirectedGraph::add_vertex(long vertex) {
     verList.insert(vertex);
 }
 
@@ -32,7 +31,8 @@ void DirectedGraph::add_edge(long src, long dest) {
     adjList[src].push_back(dest);
 }
 
-void DirectedGraph::DFS_topological(unordered_map<long, bool> &visited, stack<long> &st, long node) {
+void DirectedGraph::DFS_topological(unordered_map<long, bool> &visited, stack<long> &st,
+        long node) {
     visited[node] = true;
 
     for (auto neighbor : adjList[node]) {
@@ -41,7 +41,7 @@ void DirectedGraph::DFS_topological(unordered_map<long, bool> &visited, stack<lo
         }
     }
     //Pushing a node after all its connected elements are traversed.
-    if(node != -1){
+    if (node != -1) {
         st.push(node);
     }
     return;
@@ -52,7 +52,7 @@ vector<long> DirectedGraph::topo_sort() {
     stack<long> st;
 
     int V = adjList.size();
-    for(auto adj : adjList){
+    for (auto adj : adjList) {
         long key = adj.first;
         if (!visited[key]) {
             DFS_topological(visited, st, key);
@@ -67,8 +67,8 @@ vector<long> DirectedGraph::topo_sort() {
 
     // add orphan vertices at the beginning of the vector to return
     int i = 0;
-    for(auto vertex : verList){
-        if(find(ans.begin(), ans.end(), vertex) == ans.end()){
+    for (auto vertex : verList) {
+        if (find(ans.begin(), ans.end(), vertex) == ans.end()) {
             ans.insert(ans.begin() + i, vertex);
             i++;
         }
@@ -76,7 +76,6 @@ vector<long> DirectedGraph::topo_sort() {
 
     return ans;
 }
-
 
 // Function to print the adjacency list representation of the graph
 void DirectedGraph::print() {
@@ -86,20 +85,20 @@ void DirectedGraph::print() {
     for (auto i : adjList) {
         // Print the vertex
         cout << i.first << " -> ";
-        printed.insert((long)i.first);
+        printed.insert((long) i.first);
         // Iterate over the connected vertices
         for (auto j : i.second) {
             // Print the connected vertex
             cout << j << " ";
-            printed.insert((long)j);
+            printed.insert((long) j);
         }
         cout << endl;
     }
 
     // print orphan vertices
-    for(auto vertex : verList){
+    for (auto vertex : verList) {
         auto it = printed.find(vertex);
-        if(it == printed.end()){
+        if (it == printed.end()) {
             cout << vertex << endl;
         }
     }

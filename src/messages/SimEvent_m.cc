@@ -177,6 +177,7 @@ void SimEvent::copy(const SimEvent& other)
 {
     this->eventID = other.eventID;
     this->timestamp = other.timestamp;
+    this->count = other.count;
 }
 
 void SimEvent::parsimPack(omnetpp::cCommBuffer *b) const
@@ -184,6 +185,7 @@ void SimEvent::parsimPack(omnetpp::cCommBuffer *b) const
     ::omnetpp::cPacket::parsimPack(b);
     doParsimPacking(b,this->eventID);
     doParsimPacking(b,this->timestamp);
+    doParsimPacking(b,this->count);
 }
 
 void SimEvent::parsimUnpack(omnetpp::cCommBuffer *b)
@@ -191,6 +193,7 @@ void SimEvent::parsimUnpack(omnetpp::cCommBuffer *b)
     ::omnetpp::cPacket::parsimUnpack(b);
     doParsimUnpacking(b,this->eventID);
     doParsimUnpacking(b,this->timestamp);
+    doParsimUnpacking(b,this->count);
 }
 
 long SimEvent::getEventID() const
@@ -213,6 +216,16 @@ void SimEvent::setTimestamp(omnetpp::simtime_t timestamp)
     this->timestamp = timestamp;
 }
 
+int SimEvent::getCount() const
+{
+    return this->count;
+}
+
+void SimEvent::setCount(int count)
+{
+    this->count = count;
+}
+
 class SimEventDescriptor : public omnetpp::cClassDescriptor
 {
   private:
@@ -220,6 +233,7 @@ class SimEventDescriptor : public omnetpp::cClassDescriptor
     enum FieldConstants {
         FIELD_eventID,
         FIELD_timestamp,
+        FIELD_count,
     };
   public:
     SimEventDescriptor();
@@ -286,7 +300,7 @@ const char *SimEventDescriptor::getProperty(const char *propertyName) const
 int SimEventDescriptor::getFieldCount() const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
-    return base ? 2+base->getFieldCount() : 2;
+    return base ? 3+base->getFieldCount() : 3;
 }
 
 unsigned int SimEventDescriptor::getFieldTypeFlags(int field) const
@@ -300,8 +314,9 @@ unsigned int SimEventDescriptor::getFieldTypeFlags(int field) const
     static unsigned int fieldTypeFlags[] = {
         FD_ISEDITABLE,    // FIELD_eventID
         FD_ISEDITABLE,    // FIELD_timestamp
+        FD_ISEDITABLE,    // FIELD_count
     };
-    return (field >= 0 && field < 2) ? fieldTypeFlags[field] : 0;
+    return (field >= 0 && field < 3) ? fieldTypeFlags[field] : 0;
 }
 
 const char *SimEventDescriptor::getFieldName(int field) const
@@ -315,8 +330,9 @@ const char *SimEventDescriptor::getFieldName(int field) const
     static const char *fieldNames[] = {
         "eventID",
         "timestamp",
+        "count",
     };
-    return (field >= 0 && field < 2) ? fieldNames[field] : nullptr;
+    return (field >= 0 && field < 3) ? fieldNames[field] : nullptr;
 }
 
 int SimEventDescriptor::findField(const char *fieldName) const
@@ -325,6 +341,7 @@ int SimEventDescriptor::findField(const char *fieldName) const
     int baseIndex = base ? base->getFieldCount() : 0;
     if (strcmp(fieldName, "eventID") == 0) return baseIndex + 0;
     if (strcmp(fieldName, "timestamp") == 0) return baseIndex + 1;
+    if (strcmp(fieldName, "count") == 0) return baseIndex + 2;
     return base ? base->findField(fieldName) : -1;
 }
 
@@ -339,8 +356,9 @@ const char *SimEventDescriptor::getFieldTypeString(int field) const
     static const char *fieldTypeStrings[] = {
         "long",    // FIELD_eventID
         "omnetpp::simtime_t",    // FIELD_timestamp
+        "int",    // FIELD_count
     };
-    return (field >= 0 && field < 2) ? fieldTypeStrings[field] : nullptr;
+    return (field >= 0 && field < 3) ? fieldTypeStrings[field] : nullptr;
 }
 
 const char **SimEventDescriptor::getFieldPropertyNames(int field) const
@@ -425,6 +443,7 @@ std::string SimEventDescriptor::getFieldValueAsString(omnetpp::any_ptr object, i
     switch (field) {
         case FIELD_eventID: return long2string(pp->getEventID());
         case FIELD_timestamp: return simtime2string(pp->getTimestamp());
+        case FIELD_count: return long2string(pp->getCount());
         default: return "";
     }
 }
@@ -443,6 +462,7 @@ void SimEventDescriptor::setFieldValueAsString(omnetpp::any_ptr object, int fiel
     switch (field) {
         case FIELD_eventID: pp->setEventID(string2long(value)); break;
         case FIELD_timestamp: pp->setTimestamp(string2simtime(value)); break;
+        case FIELD_count: pp->setCount(string2long(value)); break;
         default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'SimEvent'", field);
     }
 }
@@ -459,6 +479,7 @@ omnetpp::cValue SimEventDescriptor::getFieldValue(omnetpp::any_ptr object, int f
     switch (field) {
         case FIELD_eventID: return (omnetpp::intval_t)(pp->getEventID());
         case FIELD_timestamp: return pp->getTimestamp().dbl();
+        case FIELD_count: return pp->getCount();
         default: throw omnetpp::cRuntimeError("Cannot return field %d of class 'SimEvent' as cValue -- field index out of range?", field);
     }
 }
@@ -477,6 +498,7 @@ void SimEventDescriptor::setFieldValue(omnetpp::any_ptr object, int field, int i
     switch (field) {
         case FIELD_eventID: pp->setEventID(omnetpp::checked_int_cast<long>(value.intValue())); break;
         case FIELD_timestamp: pp->setTimestamp(value.doubleValue()); break;
+        case FIELD_count: pp->setCount(omnetpp::checked_int_cast<int>(value.intValue())); break;
         default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'SimEvent'", field);
     }
 }

@@ -13,8 +13,8 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#ifndef OBJECTS_TRIGGERINGEVENTGENERATOR_H_
-#define OBJECTS_TRIGGERINGEVENTGENERATOR_H_
+#ifndef OBJECTS_OPERATIONGENERATOR_H_
+#define OBJECTS_OPERATIONGENERATOR_H_
 
 #include <vector>
 #include <queue>
@@ -23,18 +23,18 @@
 #include "OperationalEvent.h"
 #include "VirtualOperation.h"
 
-class TriggeringEventGenerator {
+class OperationGenerator {
 private:
     SituationGraph sg;
     SituationEvolution* se;
-    map<long, vector<OperationalEvent>> eventQueue;
+    map<long, vector<OperationalEvent>> eventQueues;
 public:
-    TriggeringEventGenerator();
+    OperationGenerator();
     void setModel(SituationGraph sg);
     void setModelInstance(SituationEvolution* se);
     void cacheEvent(long eventId, bool toTrigger, simtime_t timestamp);
-    queue<vector<VirtualOperation>> generateTriggeringEvents(set<long> cycleTriggered);
-    virtual ~TriggeringEventGenerator();
+    queue<vector<VirtualOperation>> generateOperations(set<long> cycleTriggered);
+    virtual ~OperationGenerator();
 };
 
-#endif /* OBJECTS_TRIGGERINGEVENTGENERATOR_H_ */
+#endif /* OBJECTS_OPERATIONGENERATOR_H_ */

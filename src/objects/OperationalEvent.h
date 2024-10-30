@@ -23,15 +23,15 @@ public:
     // state variable ID
     long svId;
     bool toTrigger;
+protected:
+    // print has to be a constant method, as the caller is a constant
+    void print(ostream &os) const {
+        Operation::print(os);
+        os << " svID " << svId << " toTrigger " << toTrigger;
+    }
 public:
     OperationalEvent();
     virtual ~OperationalEvent();
 };
-
-inline std::ostream& operator<<(std::ostream &os, const OperationalEvent &o) {
-    os << "Operational Event [" << o.id << "]: svID " << o.svId << " toTrigger "
-            << o.toTrigger << " timestamp " << o.timestamp;
-    return os;
-}
 
 #endif /* OBJECTS_OPERATIONALEVENT_H_ */

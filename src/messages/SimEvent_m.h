@@ -27,6 +27,7 @@ class SimEvent;
  * {
  *     long eventID;
  *     simtime_t timestamp;
+ *     int count;
  * }
  * </pre>
  */
@@ -35,6 +36,7 @@ class SimEvent : public ::omnetpp::cPacket
   protected:
     long eventID = 0;
     omnetpp::simtime_t timestamp = SIMTIME_ZERO;
+    int count = 0;
 
   private:
     void copy(const SimEvent& other);
@@ -56,6 +58,9 @@ class SimEvent : public ::omnetpp::cPacket
 
     virtual omnetpp::simtime_t getTimestamp() const;
     virtual void setTimestamp(omnetpp::simtime_t timestamp);
+
+    virtual int getCount() const;
+    virtual void setCount(int count);
 };
 
 inline void doParsimPacking(omnetpp::cCommBuffer *b, const SimEvent& obj) {obj.parsimPack(b);}

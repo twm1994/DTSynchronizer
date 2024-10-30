@@ -15,6 +15,8 @@ using namespace std;
 class SituationNode {
 public:
     long id;
+    // index in a directed graph for reachability query
+    int index;
     double threshold;
     vector<long> causes;
     vector<long> evidences;

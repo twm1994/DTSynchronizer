@@ -26,8 +26,8 @@ Synchronizer::Synchronizer() {
      * Construct a situation graph and a situation inference engine
      */
     sr.initModel("../files/SG.json");
-    teg.setModel(sr.getModel());
-    teg.setModelInstance(&sr);
+    sog.setModel(sr.getModel());
+    sog.setModelInstance(&sr);
 
     // 500 ms
     check_cycle = 0.5;
@@ -66,7 +66,7 @@ void Synchronizer::handleMessage(cMessage *msg) {
          * Here, temporarily only triggering events are maintained for simplicity.
          */
         if (event->getToTrigger()) {
-            teg.cacheEvent(event->getEventID(), event->getToTrigger(),
+            sog.cacheEvent(event->getEventID(), event->getToTrigger(),
                     event->getTimestamp());
 
             long id = event->getEventID();
@@ -99,14 +99,14 @@ void Synchronizer::handleMessage(cMessage *msg) {
 
         /*
          * The reasoning result contains a list of triggered observable situations,
-         * which is supposed to tell TEG to generate the corresponding simulation events.
+         * which is supposed to tell SOG to generate the corresponding simulation events.
          */
         set<long> tOperations = sr.reason(triggered, current);
 
-        queue<vector<VirtualOperation>> opSets = teg.generateTriggeringEvents(
+        queue<vector<VirtualOperation>> opSets = sog.generateOperations(
                 tOperations);
 
-        cout << "Triggering event sets are: " << endl;
+        cout << "Operation sets are: " << endl;
         util::printComplexQueue(opSets);
 
         while (!opSets.empty()) {
@@ -115,6 +115,7 @@ void Synchronizer::handleMessage(cMessage *msg) {
                 SimEvent *event = new SimEvent(msg::SIM_EVENT);
                 event->setEventID(op.id);
                 event->setTimestamp(op.timestamp);
+                event->setCount(op.count);
                 simtime_t latency = lg.generator_latency();
                 // send out the message
                 sendDelayed(event, latency, "out");

@@ -20,6 +20,14 @@
 
 class VirtualOperation: public Operation {
 public:
+    int count;
+protected:
+    // print has to be a constant method, as the caller is a constant
+    void print(ostream& os) const{
+        Operation::print(os);
+        os << " count " << count;
+    }
+public:
     VirtualOperation();
     virtual ~VirtualOperation();
 };

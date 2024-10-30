@@ -19,18 +19,17 @@
 
 Define_Module(Simulator);
 
-void Simulator::initialize()
-{
+void Simulator::initialize() {
     // TODO - Generated method body
 }
 
-void Simulator::handleMessage(cMessage *msg)
-{
+void Simulator::handleMessage(cMessage *msg) {
     if (msg->isName(msg::SIM_EVENT)) {
         SimEvent *event = check_and_cast<SimEvent*>(msg);
 
         cout << "Simulation event (" << event->getEventID() << "): timestamp "
-                << event->getTimestamp() << endl;
+                << event->getTimestamp() << " count " << event->getCount()
+                << endl;
 
         // delete the received msg
         delete event;

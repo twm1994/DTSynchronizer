@@ -26,10 +26,12 @@
 using namespace std;
 
 class DirectedGraph {
+private:
     map<long, list<long> > adjList; // Adjacency list to store the graph
     set<long> verList;
-private:
+
     void DFS_topological(unordered_map<long, bool> &visited, stack<long> &st, long node);
+
 public:
     DirectedGraph();
     void add_vertex(long vertex);

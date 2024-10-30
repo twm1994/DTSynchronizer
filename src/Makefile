@@ -41,6 +41,7 @@ OBJS = \
     $O/objects/DirectedGraph.o \
     $O/objects/Operation.o \
     $O/objects/OperationalEvent.o \
+    $O/objects/OperationGenerator.o \
     $O/objects/PhysicalOperation.o \
     $O/objects/SituationArranger.o \
     $O/objects/SituationEvolution.o \
@@ -49,7 +50,6 @@ OBJS = \
     $O/objects/SituationNode.o \
     $O/objects/SituationReasoner.o \
     $O/objects/SituationRelation.o \
-    $O/objects/TriggeringEventGenerator.o \
     $O/objects/VirtualOperation.o \
     $O/transport/LatencyGenerator.o \
     $O/messages/IoTEvent_m.o \

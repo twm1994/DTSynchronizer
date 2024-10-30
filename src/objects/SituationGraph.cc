@@ -64,12 +64,102 @@ vector<long> SituationGraph::getOperationalSitutions(long topNodeId) {
     return operational_situations;
 }
 
+bool SituationGraph::isReachable(long src, long dest){
+    int i = situationMap[src].index;
+    int j = situationMap[dest].index;
+    return ri->at(i)[j];
+}
+
+/*
+ * For square matrix only
+ */
+vector<vector<bool>> boolMatrixPower(vector<vector<bool>> &mat, int n) {
+    vector<vector<bool>> mat_n = mat;
+
+    for (int pow = 0; pow < n - 1; pow++) {
+        vector<vector<bool>> temp = mat_n;
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                bool value = false;
+                for (int m = 0; m < n; m++) {
+                    value = value || (temp[i][m] && mat[m][j]);
+                    if (value)
+                        // early out
+                        break;
+                }
+                mat_n[i][j] = value;
+            }
+        }
+    }
+
+    return mat_n;
+}
+
+/*
+ * For square matrix only
+ */
+void boolMatrixAdd(vector<vector<bool>>* result, vector<vector<bool>> &mat1,
+        vector<vector<bool>> &mat2) {
+    int n = mat1.size();
+
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            result->at(i)[j] = mat1[i][j] || mat2[i][j];
+        }
+    }
+}
+
+void SituationGraph::buildReachabilityMatrix(set<long>& vertices, set<edge_id>& edges) {
+    /*
+     * initialize reachability matrix
+     */
+    int size = vertices.size();
+    ri = new vector<vector<bool>>(size, vector<bool>(size, false));
+
+    /*
+     * build adjacency matrix
+     */
+    vector<vector<bool>> adjMatrix(size, vector<bool>(size, false));
+    for (auto src : vertices) {
+        for (auto dest : vertices) {
+            if (src != dest) {
+                edge_id eid(src, dest);
+                if (edges.count(eid)) {
+                    int i = situationMap[src].index;
+                    int j = situationMap[dest].index;
+                    adjMatrix[i][j] = true;
+                }
+            }
+        }
+    }
+
+    /*
+     * build reachability matrix
+     */
+    for (int i = 1; i <= size; i++) {
+        vector<vector<bool>> adjMatrixPow = boolMatrixPower(adjMatrix, i);
+        vector<vector<bool>> temp = *ri;
+        boolMatrixAdd(ri, temp, adjMatrixPow);
+
+    }
+}
+
 void SituationGraph::loadModel(const std::string &filename, SituationEvolution* se) {
     // Create a root
     pt::ptree root;
     // Load the json file in this ptree
     pt::read_json(filename, root);
+    int index = 0;
 
+    /*
+     * for building reachability index
+     */
+    set<long> vertices;
+    set<edge_id> edges;
+
+    /*
+     * Create situation nodes
+     */
     for (pt::ptree::value_type & layer : root.get_child("layers")) {
 
         std::map<long, SituationNode> layerMap;
@@ -79,6 +169,9 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
             SituationNode situation;
             long id = node.second.get<long>("ID");
             situation.id = id;
+            vertices.insert(id);
+            situation.index = index;
+            index++;
 
             double duration = node.second.get<double>("Duration") / 1000.0;
             if(node.second.get<string>("Cycle") != "null"){
@@ -112,6 +205,7 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
                     relation.weight = pre.second.get<double>("Weight-x");
                     edge_id eid(src, relation.dest);
                     relationMap[eid] = relation;
+                    edges.insert(eid);
                 }
             }
 
@@ -138,12 +232,18 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
                     relation.weight = chd.second.get<double>("Weight-y");
                     edge_id eid(src, relation.dest);
                     relationMap[eid] = relation;
+                    edge_id reid(relation.dest, src);
+                    edges.insert(eid);
+                    edges.insert(reid);
                 }
             }
 
             layerMap[situation.id] = situation;
         }
 
+        /**
+         * Create situation graph layers
+         */
         DirectedGraph graph;
         for (auto m : layerMap) {
             graph.add_vertex(m.first);
@@ -153,10 +253,23 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
             }
         }
 //        graph.print();
-
-        situationMap.insert(layerMap.begin(), layerMap.end());
         layers.push_back(graph);
+
+        // Create mapping relations
+        situationMap.insert(layerMap.begin(), layerMap.end());
     }
+
+    /*
+     * Create reachability index
+     */
+    buildReachabilityMatrix(vertices, edges);
+//    cout << "print reachability matrix" << endl;
+//    for(auto row : *ri){
+//        for(auto col : row){
+//            cout << col << "  ";
+//        }
+//        cout << endl;
+//    }
 }
 
 DirectedGraph SituationGraph::getLayer (int index){
@@ -178,6 +291,7 @@ void SituationGraph::print() {
 }
 
 SituationGraph::~SituationGraph() {
-    // TODO Auto-generated destructor stub
+    // TODO why cannot release pointer here?
+//    delete ri;
 }
 

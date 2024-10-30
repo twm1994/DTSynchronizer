@@ -19,4 +19,5 @@
 packet SimEvent {
     long eventID;
 	simtime_t timestamp;
+	int count;
 }

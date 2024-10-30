@@ -17,8 +17,9 @@
 #define __DTSYNCHRONIZER_SYNCHRONIZER_H_
 
 #include <omnetpp.h>
+
+#include "../objects/OperationGenerator.h"
 #include "../objects/SituationReasoner.h"
-#include "../objects/TriggeringEventGenerator.h"
 #include "../transport/LatencyGenerator.h"
 
 using namespace omnetpp;
@@ -39,7 +40,7 @@ private:
     cMessage* SCTimeout;
 
     SituationReasoner sr;
-    TriggeringEventGenerator teg;
+    OperationGenerator sog;
     LatencyGenerator lg;
     // <situation_ID, trigger_counter>
     map<long, int> bufferCounters;

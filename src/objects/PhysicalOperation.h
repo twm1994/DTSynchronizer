@@ -21,6 +21,12 @@
 class PhysicalOperation: public Operation {
 public:
     bool toTrigger;
+protected:
+    // print has to be a constant method, as the caller is a constant
+    void print(ostream &os) const {
+        Operation::print(os);
+        os << " toTrigger " << toTrigger;
+    }
 public:
     PhysicalOperation();
     virtual ~PhysicalOperation();

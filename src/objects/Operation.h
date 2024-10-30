@@ -18,20 +18,25 @@
 
 #include <omnetpp.h>
 
+using namespace std;
 using namespace omnetpp;
 
 class Operation {
 public:
     long id;
     simtime_t timestamp;
+protected:
+    // print has to be a constant method, as the caller is a constant
+    virtual void print(ostream& os) const{
+        os << "Operation [" << id << "]: timestamp " << timestamp;
+    }
+    friend ostream& operator<<(ostream &os, const Operation &o) {
+        o.print(os);
+        return os;
+    }
 public:
     Operation();
     virtual ~Operation();
 };
-
-inline std::ostream& operator<<(std::ostream &os, const Operation &o) {
-    os << "Operation [" << o.id << "]: timestamp " << o.timestamp;
-    return os;
-}
 
 #endif /* OBJECTS_OPERATION_H_ */

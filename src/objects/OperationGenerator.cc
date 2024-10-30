@@ -14,36 +14,36 @@
 // 
 
 #include "../common/Util.h"
-#include "TriggeringEventGenerator.h"
+#include "OperationGenerator.h"
 
-TriggeringEventGenerator::TriggeringEventGenerator() {
+OperationGenerator::OperationGenerator() {
 
 }
 
-void TriggeringEventGenerator::setModel(SituationGraph sg){
+void OperationGenerator::setModel(SituationGraph sg){
     this->sg = sg;
 }
 
-void TriggeringEventGenerator::setModelInstance(SituationEvolution* se){
+void OperationGenerator::setModelInstance(SituationEvolution* se){
     this->se = se;
 }
 
-void TriggeringEventGenerator::cacheEvent(long eventId, bool toTrigger,
+void OperationGenerator::cacheEvent(long eventId, bool toTrigger,
         simtime_t timestamp) {
     OperationalEvent event;
     event.id = eventId;
     event.toTrigger = toTrigger;
     event.timestamp = timestamp;
-    eventQueue[eventId].push_back(event);
+    eventQueues[eventId].push_back(event);
 }
 
-queue<vector<VirtualOperation>> TriggeringEventGenerator::generateTriggeringEvents(set<long> cycleTriggered) {
+queue<vector<VirtualOperation>> OperationGenerator::generateOperations(set<long> cycleTriggered) {
     /*
      * Event merge: here is only an over-simplified implementation
      */
     map<long, OperationalEvent> mergedEvents;
     set<long> toRemoveFront;
-    for(auto a : eventQueue){
+    for(auto a : eventQueues){
         long id = a.first;
         if(!a.second.empty()){
             OperationalEvent event = a.second[0];
@@ -54,12 +54,12 @@ queue<vector<VirtualOperation>> TriggeringEventGenerator::generateTriggeringEven
 
     //    cout << "mergedEvents: ";
     //    util::printMap(mergedEvents);
-        cout << "print eventQueue: " << endl;
-        util::printComplexMap(eventQueue);
+        cout << "print eventQueues: " << endl;
+        util::printComplexMap(eventQueues);
 
     // to remove the first event from cache, which is supposed to be transmitted to simulator
     for(auto a : toRemoveFront){
-        eventQueue[a].erase(eventQueue[a].begin());
+        eventQueues[a].erase(eventQueues[a].begin());
     }
 
     /*
@@ -75,6 +75,7 @@ queue<vector<VirtualOperation>> TriggeringEventGenerator::generateTriggeringEven
         VirtualOperation vo;
         vo.id = a.first;
         vo.timestamp = a.second.timestamp;
+        vo.count = se->getInstance(a.first).counter;
         voMap[vo.id] = vo;
     }
     sorted.push(voMap);
@@ -88,30 +89,31 @@ queue<vector<VirtualOperation>> TriggeringEventGenerator::generateTriggeringEven
             long id = vo.first;
             SituationNode node = sg.getNode(id);
             SituationInstance& instance = se->getInstance(id);
-            vector<long> causes = node.causes;
-            if(!causes.empty()){
-                bool sameSlice = false;
-                for(auto cause : causes){
-                    if(topMap.count(cause) > 0){
-                        SituationInstance& cInstance = se->getInstance(cause);
-                        /*
-                         * check whether causes have been triggered in the last time slice
-                         */
-                        if(cInstance.counter == instance.counter){
-                            VirtualOperation& co = topMap[cause];
-                            newVoMap[cause] = co;
-                            sameSlice = true;
-                        }
-                    }else{
-                        break;
+
+            /*
+             * search for vo's cause situations
+             */
+            // a flag indicating whether a situation has a cause in the same slice
+            bool sameSlice = false;
+            for(auto& vo1 : topMap){
+                if(vo1.first != id && sg.isReachable(vo1.first, id) && !sg.isReachable(id, vo1.first)){
+                    SituationInstance& cInstance = se->getInstance(vo1.first);
+                    /*
+                     * check whether causes have been triggered in the last time slice
+                     */
+                    if(cInstance.counter == instance.counter){
+                        newVoMap[vo1.first] = vo1.second;
+                        sameSlice = true;
+                        hasCause = true;
+//                        cout << "find cause situation (" << vo.second << ")'s cause (" << vo1.second << endl;
                     }
                 }
-                if(sameSlice){
-                    hasCause = true;
-                }
-            }else{
+            }
+            if(!sameSlice){
+                // migrate causes and no-cause operations to a new operation set
                 newVoMap[id] = vo.second;
             }
+
         }
 
         if(hasCause){
@@ -120,6 +122,8 @@ queue<vector<VirtualOperation>> TriggeringEventGenerator::generateTriggeringEven
             for(auto vo : newVoMap){
                 topMap.erase(vo.first);
             }
+
+            cout << "migrate operation set" << endl;
         }
 
     }while(hasCause);
@@ -142,7 +146,7 @@ queue<vector<VirtualOperation>> TriggeringEventGenerator::generateTriggeringEven
     return opSets;
 }
 
-TriggeringEventGenerator::~TriggeringEventGenerator() {
+OperationGenerator::~OperationGenerator() {
     // TODO Auto-generated destructor stub
 }
 

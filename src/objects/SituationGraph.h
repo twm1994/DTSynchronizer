@@ -26,6 +26,7 @@
 #include "DirectedGraph.h"
 
 using namespace std;
+using namespace omnetpp;
 using namespace boost::tuples;
 
 // forward declaration

@@ -24,7 +24,6 @@
 #include "SituationEvolution.h"
 #include "SituationGraph.h"
 
-using namespace omnetpp;
 namespace pt = boost::property_tree;
 
 SituationGraph::SituationGraph() {

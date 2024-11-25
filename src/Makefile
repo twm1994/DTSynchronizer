@@ -2,7 +2,7 @@
 # OMNeT++/OMNEST Makefile for DTSynchronizer
 #
 # This file was generated with the command:
-#  opp_makemake -f --deep -IC:/Users/sunni/Workspace/boost_1_86_0 -IC:/omnetpp-6.0.3/include/omnetpp -I../include -LC:/Users/sunni/Workspace/boost_1_86_0/libs
+#  opp_makemake -f --deep -IC:/omnetpp-6.0.3/include/omnetpp -ID:/Workspace/boost_1_86_0 -I../include -LC:/Users/sunni/Workspace/boost_1_86_0/libs
 #
 
 # Name of target to be created (-o option)
@@ -19,7 +19,7 @@ USERIF_LIBS = $(ALL_ENV_LIBS) # that is, $(QTENV_LIBS) $(CMDENV_LIBS)
 #USERIF_LIBS = $(QTENV_LIBS)
 
 # C++ include paths (with -I)
-INCLUDE_PATH = -IC:/Users/sunni/Workspace/boost_1_86_0 -IC:/omnetpp-6.0.3/include/omnetpp -I../include
+INCLUDE_PATH = -IC:/omnetpp-6.0.3/include/omnetpp -ID:/Workspace/boost_1_86_0 -I../include
 
 # Additional object and library files to link with
 EXTRA_OBJS =

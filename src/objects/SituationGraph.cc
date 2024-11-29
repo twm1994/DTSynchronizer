@@ -122,7 +122,9 @@ void SituationGraph::buildReachabilityMatrix(set<long>& vertices, set<edge_id>& 
     for (auto src : vertices) {
         for (auto dest : vertices) {
             if (src != dest) {
-                edge_id eid(src, dest);
+                edge_id eid;
+                eid.first = src;
+                eid.second = dest;
                 if (edges.count(eid)) {
                     int i = situationMap[src].index;
                     int j = situationMap[dest].index;
@@ -202,7 +204,9 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
                         relation.relation = SituationRelation::SOLE;
                     }
                     relation.weight = pre.second.get<double>("Weight-x");
-                    edge_id eid(src, relation.dest);
+                    edge_id eid;
+                    eid.first = src;
+                    eid.second = relation.dest;
                     relationMap[eid] = relation;
                     edges.insert(eid);
                 }
@@ -229,9 +233,13 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
                         relation.relation = SituationRelation::SOLE;
                     }
                     relation.weight = chd.second.get<double>("Weight-y");
-                    edge_id eid(src, relation.dest);
+                    edge_id eid;
+                    eid.first = src;
+                    eid.second = relation.dest;
                     relationMap[eid] = relation;
-                    edge_id reid(relation.dest, src);
+                    edge_id reid;
+                    reid.first = relation.dest;
+                    reid.second = src;
                     edges.insert(eid);
                     edges.insert(reid);
                 }

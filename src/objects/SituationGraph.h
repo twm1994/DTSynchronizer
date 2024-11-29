@@ -18,15 +18,11 @@
 
 #include <vector>
 #include <map>
-#include "boost/tuple/tuple.hpp"
-#include "boost/tuple/tuple_comparison.hpp"
-#include "boost/tuple/tuple_io.hpp"
 #include "SituationNode.h"
 #include "SituationRelation.h"
 #include "DirectedGraph.h"
 
 using namespace std;
-using namespace boost::tuples;
 
 // forward declaration
 class SituationEvolution;
@@ -34,7 +30,7 @@ class SituationEvolution;
 class SituationGraph {
 private:
     map<long, SituationNode> situationMap;
-    typedef boost::tuple<long, long> edge_id;
+    typedef pair<long, long> edge_id;
     map<edge_id, SituationRelation> relationMap;
     vector<DirectedGraph> layers;
     // reachability index

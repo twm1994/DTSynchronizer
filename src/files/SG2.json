@@ -1,0 +1,70 @@
+{
+	"layers": [
+		[
+			{
+				"ID": 101,
+				"Predecessors": null,
+				"Children": null,
+				"Duration": 3000,
+				"Cycle": 1000,
+				"type": 0
+			},
+			{
+				"ID": 102,
+				"Predecessors": null,
+				"Children": null,
+				"Duration": 3000,
+				"Cycle": 1000,
+				"type": 1
+			},
+			{
+				"ID": 103,
+				"Predecessors": null,
+				"Children": null,
+				"Duration": 1000,
+				"Cycle": 1500,
+				"type": 1
+			},
+			{
+				"ID": 104,
+				"Predecessors": null,
+				"Children": null,
+				"Duration": 1000,
+				"Cycle": 4500,
+				"type": 0
+			},
+			{
+				"ID": 105,
+				"Predecessors": null,
+				"Children": null,
+				"Duration": 1000,
+				"Cycle": 4000,
+				"type": 0
+			},			
+			{
+				"ID": 106,
+				"Predecessors": [{"ID": 101, "Weight-x": 0.5, "Relation": 1}, {"ID": 102, "Weight-x": 0.5, "Relation": 1}],
+				"Children": null,
+				"Duration": 1000,
+				"Cycle": 1000,
+				"type": 0
+			},
+			{
+				"ID": 107,
+				"Predecessors": [{"ID": 103, "Weight-x": 0.5, "Relation": 1}, {"ID": 106, "Weight-x": 0.5, "Relation": 1}],
+				"Children": null,
+				"Duration": 1000,
+				"Cycle": 2500,
+				"type": 0
+			},
+			{
+				"ID": 108,
+				"Predecessors": [{"ID": 104, "Weight-x": 0.5, "Relation": 1}, {"ID": 105, "Weight-x": 0.5, "Relation": 1}, {"ID": 106, "Weight-x": 0.5, "Relation": 1}],
+				"Children": null,
+				"Duration": 1000,
+				"Cycle": 5000,
+				"type": 0
+			}
+		] 
+	]
+}

@@ -16,8 +16,10 @@
 #ifndef OBJECTS_SITUATIONREASONER_H_
 #define OBJECTS_SITUATIONREASONER_H_
 
+#include <algorithm>
 #include <omnetpp.h>
 #include "SituationEvolution.h"
+#include "BNInferenceEngine.h"
 
 using namespace omnetpp;
 using namespace std;
@@ -27,7 +29,7 @@ private:
 public:
     SituationReasoner();
     // return a set of triggered operational situations
-    set<long> reason(set<long> triggered, simtime_t current);
+    std::set<long> reason(std::set<long> triggered, simtime_t current);
     // reset durable situations if timeout
     void checkState(simtime_t current);
     virtual ~SituationReasoner();

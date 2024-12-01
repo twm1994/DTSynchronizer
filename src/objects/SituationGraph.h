@@ -17,6 +17,7 @@
 #define OBJECTS_SITUATIONGRAPH_H_
 
 #include <vector>
+#include <utility>
 #include <map>
 #include "SituationNode.h"
 #include "SituationRelation.h"
@@ -29,13 +30,14 @@ class SituationEvolution;
 
 class SituationGraph {
 private:
+    // reachability index
+    vector<vector<bool>> *ri;
+public:
     map<long, SituationNode> situationMap;
     typedef pair<long, long> edge_id;
     map<edge_id, SituationRelation> relationMap;
     vector<DirectedGraph> layers;
-    // reachability index
-    vector<vector<bool>> *ri;
-
+private:
     void buildReachabilityMatrix(set<long>& vertices, set<edge_id>& edges);
 public:
     SituationGraph();
@@ -46,6 +48,7 @@ public:
     DirectedGraph getLayer (int index);
     int modelHeight();
     SituationNode getNode(long id);
+    int numOfNodes();
     void print();
     virtual ~SituationGraph();
 };

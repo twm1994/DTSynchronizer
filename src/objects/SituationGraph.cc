@@ -175,12 +175,13 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
             index++;
 
             double duration = node.second.get<double>("Duration") / 1000.0;
+            SituationInstance::Type type = (SituationInstance::Type)node.second.get<short>("type");
             if(node.second.get<string>("Cycle") != "null"){
                 // cycle is in millisecond
                 double cycle = node.second.get<double>("Cycle") / 1000.0;
-                se->addInstance(id, SimTime(duration), SimTime(cycle));
+                se->addInstance(id, type, SimTime(duration), SimTime(cycle));
             }else{
-                se->addInstance(id, SimTime(duration));
+                se->addInstance(id, type, SimTime(duration));
             }
 
             if (!node.second.get_child("Predecessors").empty()) {
@@ -289,6 +290,10 @@ SituationNode SituationGraph::getNode(long id){
 
 int SituationGraph::modelHeight(){
     return layers.size();
+}
+
+int SituationGraph::numOfNodes(){
+    return situationMap.size();
 }
 
 void SituationGraph::print() {

@@ -43,7 +43,7 @@ private:
     OperationGenerator sog;
     LatencyGenerator lg;
     // <situation_ID, trigger_counter>
-    map<long, int> bufferCounters;
+    std::map<long, int> bufferCounters;
 
 protected:
     virtual void initialize() override;

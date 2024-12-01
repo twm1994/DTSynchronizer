@@ -27,17 +27,17 @@ void SituationEvolution::initModel(const char *model_path) {
     sg.loadModel(model_path, this);
 }
 
-void SituationEvolution::addInstance(long id, simtime_t duration,
-        simtime_t cycle) {
-    SituationInstance si(id, duration, cycle);
+void SituationEvolution::addInstance(long id, SituationInstance::Type type,
+        simtime_t duration, simtime_t cycle) {
+    SituationInstance si(id, type, duration, cycle);
     instanceMap[si.id] = si;
 }
 
-SituationInstance& SituationEvolution::getInstance(long id){
+SituationInstance& SituationEvolution::getInstance(long id) {
     return instanceMap[id];
 }
 
-SituationGraph& SituationEvolution::getModel(){
+SituationGraph& SituationEvolution::getModel() {
     return sg;
 }
 

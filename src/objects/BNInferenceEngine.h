@@ -13,35 +13,38 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#ifndef OBJECTS_SITUATIONEVOLUTION_H_
-#define OBJECTS_SITUATIONEVOLUTION_H_
+#ifndef OBJECTS_BNINFERENCEENGINE_H_
+#define OBJECTS_BNINFERENCEENGINE_H_
 
-#include <omnetpp.h>
 #include <map>
-#include <set>
 #include <vector>
+#include <utility>
+#include <bitset>
+#include <dlib/bayes_utils.h>
+#include <dlib/graph_utils.h>
+#include <dlib/graph.h>
+#include <dlib/directed_graph.h>
+#include <omnetpp.h>
 #include "SituationInstance.h"
-#include "PhysicalOperation.h"
 #include "SituationGraph.h"
+#include "DirectedGraph.h"
 
-using namespace omnetpp;
 using namespace std;
+using namespace dlib;
+using namespace bayes_node_utils;
+using namespace omnetpp;
 
-class SituationEvolution {
-protected:
-    SituationGraph sg;
-    map<int, SituationInstance> instanceMap;
+class BNInferenceEngine {
+private:
+    directed_graph<bayes_node>::kernel_1a_c BNet;
+//    void constructCPT();
+//    void subgraphExtraction();
 public:
-    SituationEvolution();
-    void initModel(const char *model_path);
-    // return a list of operations as operational situations
-    void addInstance(long id, SituationInstance::Type type =
-            SituationInstance::NORMAL, simtime_t duration = 0, simtime_t cycle =
-            0);
-    SituationInstance& getInstance(long id);
-    SituationGraph& getModel();
-    void print();
-    virtual ~SituationEvolution();
+    void loadModel(SituationGraph sg);
+    void reason(SituationGraph sg,
+            std::map<int, SituationInstance> &instanceMap, simtime_t current);
+    BNInferenceEngine();
+    virtual ~BNInferenceEngine();
 };
 
-#endif /* OBJECTS_SITUATIONEVOLUTION_H_ */
+#endif /* OBJECTS_BNINFERENCEENGINE_H_ */

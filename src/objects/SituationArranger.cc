@@ -62,9 +62,9 @@ vector<PhysicalOperation> SituationArranger::arrange(simtime_t current) {
         SituationInstance &ti = instanceMap[triggerable];
 
         if (ti.state == SituationInstance::UNTRIGGERED) {
-            if (ti.next_start <= current && Random.NextDecimal() > 0.7) {
+            if (ti.next_start <= current && Random.NextDecimal() > 0) {
 
-                cout << "trigger situation " << ti.id << endl;
+//                cout << "trigger situation " << ti.id << endl;
 
                 ti.state = SituationInstance::TRIGGERED;
                 vector<long> tBottoms = sg.getOperationalSitutions(triggerable);
@@ -78,7 +78,7 @@ vector<PhysicalOperation> SituationArranger::arrange(simtime_t current) {
         } else {
             /*
              * check whether all bottom situations have been triggered,
-             * which means they have experience the transition from triggered
+             * which means they have experienced the transition from triggered
              * to untriggered.
              */
             bool allTriggered = true;
@@ -95,7 +95,7 @@ vector<PhysicalOperation> SituationArranger::arrange(simtime_t current) {
 
             if (allTriggered && ti.next_start + ti.duration <= current) {
 
-                cout << "reset situation " << ti.id << endl;
+//                cout << "reset situation " << ti.id << endl;
 
                 ti.state = SituationInstance::UNTRIGGERED;
                 ti.counter++;
@@ -142,7 +142,10 @@ vector<PhysicalOperation> SituationArranger::arrange(simtime_t current) {
                     s.toTrigger = true;
                 }
             }
-            operations.push_back(s);
+            if(bi.type != SituationInstance::HIDDEN){
+                // only send observable operations
+                operations.push_back(s);
+            }
         } else {
             bi.state = SituationInstance::UNTRIGGERED;
         }

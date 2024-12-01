@@ -16,20 +16,26 @@
 #ifndef OBJECTS_SITUATIONINSTANCE_H_
 #define OBJECTS_SITUATIONINSTANCE_H_
 
-#include <omnetpp.h>
 #include <iostream>
+#include <omnetpp.h>
 
 using namespace std;
 using namespace omnetpp;
 
 class SituationInstance {
 public:
+    enum Type {
+        NORMAL, HIDDEN
+    };
     enum State {
-        UNTRIGGERED, TRIGGERED
+        UNTRIGGERED, TRIGGERED, UNDETERMINED
     };
     long id;
     int counter;
-    State state; // 0 - untriggered, 1 - triggered
+    // 0 - normal source, 1 - hidden source
+    Type type;
+    // 0 - untriggered, 1 - triggered, 2 - UNDETERMINED
+    State state;
     simtime_t duration;
     simtime_t cycle;
     /*
@@ -41,14 +47,15 @@ public:
 
 public:
     SituationInstance();
-    SituationInstance(long id, simtime_t duration, simtime_t cycle);
+    SituationInstance(long id, Type type, simtime_t duration, simtime_t cycle);
     virtual ~SituationInstance();
 };
 
 inline std::ostream& operator<<(std::ostream &os, const SituationInstance &si) {
-    os << "situation (" << si.id << "): counter " << si.counter << ", state "
-            << si.state << ", duration " << si.duration << ", cycle "
-            << si.cycle << ", next_start " << si.next_start << endl;
+    os << "situation (" << si.id << "): counter " << si.counter << ", type "
+            << si.type << ", state " << si.state << ", duration " << si.duration
+            << ", cycle " << si.cycle << ", next_start " << si.next_start
+            << endl;
     return os;
 }
 

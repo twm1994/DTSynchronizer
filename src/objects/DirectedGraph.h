@@ -41,6 +41,7 @@ public:
     void print();
     //Function to return list containing vertices in Topological order.
     vector<long> topo_sort();
+    const set<long>& getVertices() const { return verList; }
     virtual ~DirectedGraph();
 };
 

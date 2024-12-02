@@ -21,6 +21,7 @@
 #include "../objects/OperationGenerator.h"
 #include "../objects/SituationReasoner.h"
 #include "../transport/LatencyGenerator.h"
+#include "../utils/ReasonerLogger.h"
 
 using namespace omnetpp;
 using namespace std;

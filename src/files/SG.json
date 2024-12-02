@@ -2,6 +2,15 @@
 	"layers": [
 		[
 			{
+				"ID": 301,
+				"Predecessors": null,
+				"Children": [{"ID": 201, "Weight-y": 0.98, "Relation": 2},{"ID": 202, "Weight-y": 0.98, "Relation": 2}],
+				"Duration": 3000,
+				"Cycle": 0
+			}
+		],
+		[
+			{
 				"ID": 201,
 				"Predecessors": null,
 				"Children": [{"ID": 101, "Weight-y": 0.98, "Relation": 1},{"ID": 102, "Weight-y": 0.98, "Relation": 1}],

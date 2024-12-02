@@ -13,16 +13,24 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-#include <omnetpp.h>
+#include "SituationGraph.h"
+
+// Standard library includes
 #include <stack>
+
+// OMNeT++ includes
+#include <omnetpp.h>
+
+// Boost includes
 #include <boost/json.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include "boost/tuple/tuple.hpp"
 #include "boost/tuple/tuple_comparison.hpp"
 #include "boost/tuple/tuple_io.hpp"
+
+// Project includes
 #include "SituationEvolution.h"
-#include "SituationGraph.h"
 
 using namespace omnetpp;
 namespace pt = boost::property_tree;
@@ -272,16 +280,37 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
 //    }
 }
 
-DirectedGraph SituationGraph::getLayer (int index){
+DirectedGraph SituationGraph::getLayer(int index) const {
     return layers[index];
 }
 
-SituationNode SituationGraph::getNode(long id){
-    return situationMap[id];
+SituationNode SituationGraph::getNode(long id) const {
+    return situationMap.at(id);
 }
 
-int SituationGraph::modelHeight(){
+int SituationGraph::modelHeight() const {
     return layers.size();
+}
+
+const SituationRelation* SituationGraph::getRelation(long src, long dest) const {
+    edge_id eid(src, dest);
+    auto it = relationMap.find(eid);
+    if (it == relationMap.end()) {
+        return nullptr;
+    }
+    return &(it->second);
+}
+
+const std::map<long, SituationRelation>& SituationGraph::getOutgoingRelations(long nodeId) const {
+    static std::map<long, SituationRelation> outgoing;
+    outgoing.clear();
+    
+    for (const auto& rel : relationMap) {
+        if (rel.first.get<0>() == nodeId) {  // If this relation starts from nodeId
+            outgoing[rel.first.get<1>()] = rel.second;  // Map destination node to relation
+        }
+    }
+    return outgoing;
 }
 
 void SituationGraph::print() {
@@ -294,4 +323,3 @@ SituationGraph::~SituationGraph() {
     // TODO why cannot release pointer here?
 //    delete ri;
 }
-

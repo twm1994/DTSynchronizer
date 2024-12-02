@@ -16,19 +16,24 @@
 #ifndef OBJECTS_SITUATIONGRAPH_H_
 #define OBJECTS_SITUATIONGRAPH_H_
 
-#include <vector>
+// Standard library includes
 #include <map>
-#include "boost/tuple/tuple.hpp"
-#include "boost/tuple/tuple_comparison.hpp"
-#include "boost/tuple/tuple_io.hpp"
+#include <vector>
+
+// Boost includes
+#include <boost/tuple/tuple.hpp>
+#include <boost/tuple/tuple_comparison.hpp>
+#include <boost/tuple/tuple_io.hpp>
+
+// Project includes
+#include "DirectedGraph.h"
 #include "SituationNode.h"
 #include "SituationRelation.h"
-#include "DirectedGraph.h"
 
 using namespace std;
 using namespace boost::tuples;
 
-// forward declaration
+// Forward declaration
 class SituationEvolution;
 
 class SituationGraph {
@@ -37,19 +42,22 @@ private:
     typedef boost::tuple<long, long> edge_id;
     map<edge_id, SituationRelation> relationMap;
     vector<DirectedGraph> layers;
-    // reachability index
+    // Reachability index
     vector<vector<bool>> *ri;
 
     void buildReachabilityMatrix(set<long>& vertices, set<edge_id>& edges);
+
 public:
     SituationGraph();
     vector<long> getAllOperationalSitutions();
     vector<long> getOperationalSitutions(long topNodeId);
     bool isReachable(long src, long dest);
-    void loadModel(const std::string &filename, SituationEvolution* arrangeer);
-    DirectedGraph getLayer (int index);
-    int modelHeight();
-    SituationNode getNode(long id);
+    void loadModel(const std::string &filename, SituationEvolution* arranger);
+    DirectedGraph getLayer(int index) const;
+    int modelHeight() const;
+    SituationNode getNode(long id) const;
+    const SituationRelation* getRelation(long src, long dest) const;
+    const std::map<long, SituationRelation>& getOutgoingRelations(long nodeId) const;
     void print();
     virtual ~SituationGraph();
 };

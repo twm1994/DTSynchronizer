@@ -29,6 +29,15 @@ Synchronizer::Synchronizer() {
     sog.setModel(sr.getModel());
     sog.setModelInstance(&sr);
 
+    // Create logs directory if it doesn't exist
+    std::string logDir = "../logs";
+    if (system(("mkdir -p " + logDir).c_str()) != 0) {
+        EV_ERROR << "Failed to create logs directory" << endl;
+    }
+
+    // Initialize the reasoner's logger
+    sr.initializeLogger(logDir + "/reasoner");
+
     // 500 ms
     check_cycle = 0.5;
     // 3000 ms

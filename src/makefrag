@@ -1,0 +1,36 @@
+CXXFLAGS += -std=c++20
+
+# aGrUM library paths
+# INCLUDE_PATH += -I/usr/local/include
+
+# Base library configuration, link agrum library here to avoid archetecture-related build errors on 
+LIBS += -L/usr/local/lib -lagrum -lpthread
+
+# Common compiler flags for all platforms
+CXXFLAGS += -fvisibility=hidden -fvisibility-inlines-hidden
+CXXFLAGS += -DGUM_NO_EXTERN_TEMPLATE
+CXXFLAGS += -ftemplate-depth=1000
+
+# Windows-specific configuration
+ifeq ($(OS),Windows_NT)
+    # Force same C++ ABI as aGrUM on Windows
+    CXXFLAGS += -D_GLIBCXX_USE_CXX11_ABI=1
+    
+    # Additional compiler flags for Windows
+    CXXFLAGS += -fPIC
+    
+    # Windows-specific linking
+    LIBS := -L/usr/local/lib -Wl,-Bstatic -lagrum -Wl,-Bdynamic -lpthread $(LIBS)
+    
+    # Additional Windows-specific flags
+    CXXFLAGS += -DWIN32_LEAN_AND_MEAN -DNOMINMAX
+endif
+
+# Force external template instantiation
+CXXFLAGS += -DGUM_FORCE_TEMPLATE_INSTANTIATION
+
+# Disable automatic template instantiation
+CXXFLAGS += -fno-implicit-templates
+
+# Additional optimization flags
+CXXFLAGS += -fno-inline-functions

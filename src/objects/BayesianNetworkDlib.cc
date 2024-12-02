@@ -101,52 +101,70 @@ void BayesianNetworkDlib::addEdge(const std::string& parent, const std::string& 
 }
 
 void BayesianNetworkDlib::buildJoinTree() {
-    dlib::create_moral_graph(_bn, *_joinTree);
-    dlib::create_join_tree(*_joinTree);
+    try {
+        // Create a new join tree
+        _joinTree = std::make_unique<join_tree_type>();
+        
+        // Create a join tree from the Bayesian network using dlib's create_join_tree
+        dlib::create_join_tree(_bn, *_joinTree);
+        
+        // Initialize the joint probability tables
+        dlib::bayesian_network_join_tree(_bn, *_joinTree);
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Error building join tree: " + std::string(e.what()));
+    }
 }
 
 void BayesianNetworkDlib::performInference() {
     try {
-        // Create a join tree from the Bayesian network
-        buildJoinTree();
-        
-        // Set evidence
-        for (const auto& ev : _evidence) {
-            unsigned long node_idx = _nodeMap[ev.first];
-            auto& node = _bn.node(node_idx);
-            dlib::matrix<double> evidence_mat(2,1);
-            evidence_mat = 0;
-            evidence_mat(ev.second,0) = 1.0;
-            node.data.table() = evidence_mat;
+        if (!_joinTree) {
+            buildJoinTree();
         }
-        
-        // Perform inference using join tree algorithm
-        dlib::bayesian_network_join_tree solution(_bn, *_joinTree);
-        solution.join_tree = *_joinTree;
-        solution.compute_net_probabilities();
-        
+
+        // Set evidence in the network
+        for (const auto& [nodeName, value] : _evidence) {
+            if (_nodeMap.find(nodeName) == _nodeMap.end()) {
+                throw std::runtime_error("Node " + nodeName + " not found in network");
+            }
+            unsigned long node_idx = _nodeMap[nodeName];
+            auto& node = _bn.node(node_idx);
+            
+            // Clear current probability table
+            node.data.table().set_size(2, 1);
+            // Set evidence (0 for false state, 1 for true state)
+            node.data.table()(value, 0) = 1.0;
+            node.data.table()(!value, 0) = 0.0;
+        }
+
+        // Perform belief propagation using dlib's join tree algorithm
+        dlib::bayesian_network_join_tree(_bn, *_joinTree);
     } catch (const std::exception& e) {
-        throw std::runtime_error("Error during inference: " + std::string(e.what()));
+        throw std::runtime_error("Error performing inference: " + std::string(e.what()));
     }
 }
 
 void BayesianNetworkDlib::addEvidence(const std::string& nodeName, size_t value) {
     if (_nodeMap.find(nodeName) == _nodeMap.end()) {
-        throw std::runtime_error("Node not found: " + nodeName);
+        throw std::runtime_error("Node " + nodeName + " not found in network");
     }
-    if (value >= 2) {  // Binary nodes only have states 0 and 1
-        throw std::runtime_error("Invalid value for binary node");
+    if (value > 1) { // Binary nodes only accept 0 or 1
+        throw std::runtime_error("Invalid evidence value. Must be 0 or 1");
     }
     _evidence[nodeName] = value;
 }
 
 void BayesianNetworkDlib::eraseEvidence(const std::string& nodeName) {
-    _evidence.erase(nodeName);
+    if (_nodeMap.find(nodeName) == _nodeMap.end()) {
+        throw std::runtime_error("Node " + nodeName + " not found in network");
+    }
     
-    // Reset node to uniform distribution
-    if (_nodeMap.find(nodeName) != _nodeMap.end()) {
+    auto it = _evidence.find(nodeName);
+    if (it != _evidence.end()) {
+        _evidence.erase(it);
+        // Reset node's CPT to uniform distribution
         unsigned long node_idx = _nodeMap[nodeName];
         auto& node = _bn.node(node_idx);
+        node.data.table().set_size(2, 1);
         node.data.table()(0,0) = 0.5;
         node.data.table()(1,0) = 0.5;
     }
@@ -154,22 +172,35 @@ void BayesianNetworkDlib::eraseEvidence(const std::string& nodeName) {
 
 void BayesianNetworkDlib::eraseAllEvidence() {
     _evidence.clear();
-    
     // Reset all nodes to uniform distribution
     for (unsigned long i = 0; i < _bn.number_of_nodes(); ++i) {
         auto& node = _bn.node(i);
-        size_t cols = node.data.table().nc();
-        node.data.table() = 0.5;  // Set all entries to 0.5
+        node.data.table().set_size(2, 1);
+        node.data.table()(0,0) = 0.5;
+        node.data.table()(1,0) = 0.5;
     }
 }
 
 std::vector<double> BayesianNetworkDlib::getPosterior(const std::string& nodeName) {
     if (_nodeMap.find(nodeName) == _nodeMap.end()) {
-        throw std::runtime_error("Node not found: " + nodeName);
+        throw std::runtime_error("Node " + nodeName + " not found in network");
     }
     
-    dlib::matrix<double> prob = calculateJointProbability(nodeName);
-    return matrixToVector(prob);
+    // Ensure inference has been performed with current evidence
+    performInference();
+    
+    // Get node's probability table
+    unsigned long node_idx = _nodeMap[nodeName];
+    const auto& node = _bn.node(node_idx);
+    const auto& table = node.data.table();
+    
+    // Convert to vector format
+    std::vector<double> posterior;
+    posterior.reserve(2);  // Binary nodes
+    posterior.push_back(table(0,0));  // P(False)
+    posterior.push_back(table(1,0));  // P(True)
+    
+    return posterior;
 }
 
 dlib::matrix<double> BayesianNetworkDlib::calculateJointProbability(const std::string& nodeName) {

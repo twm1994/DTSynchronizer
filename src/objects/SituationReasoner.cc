@@ -29,7 +29,7 @@ void SituationReasoner::initializeLogger(const std::string& logBasePath) {
     // Initialize instances for all nodes in the graph starting from bottom layer
     for (int layer = sg.modelHeight() - 1; layer >= 0; layer--) {
         DirectedGraph currentLayer = sg.getLayer(layer);
-        vector<long> nodes = currentLayer.topo_sort();
+        std::vector<long> nodes = currentLayer.topo_sort();
         for (long nodeId : nodes) {
             if (instanceMap.find(nodeId) == instanceMap.end()) {
                 addInstance(nodeId);
@@ -45,7 +45,7 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
     
     for (int layer = numLayers - 1; layer >= 0; layer--) {
         DirectedGraph currentLayer = graph.getLayer(layer);
-        vector<long> nodes = currentLayer.topo_sort();
+        std::vector<long> nodes = currentLayer.topo_sort();
         
         // Process each node in the current layer as a hypothesis
         for (long nodeId : nodes) {
@@ -53,7 +53,7 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
             SituationInstance& hypothesisInstance = instanceMap[nodeId];
             
             // Collect evidence nodes from the layer below (type-V relations)
-            vector<long> evidenceNodes;
+            std::vector<long> evidenceNodes;
             for (long evidenceId : hypothesisNode.evidences) {
                 const SituationRelation* relation = graph.getRelation(nodeId, evidenceId);
                 if (relation && relation->type == SituationRelation::V) {
@@ -155,10 +155,10 @@ void SituationReasoner::backwardRetrospection(SituationGraph& graph) {
     // Process each layer from top to bottom
     for (int layer = 0; layer < numLayers; layer++) {
         DirectedGraph currentLayer = graph.getLayer(layer);
-        vector<long> nodes = currentLayer.topo_sort();
+        std::vector<long> nodes = currentLayer.topo_sort();
         
         // First iteration: collect triggered situations in this layer
-        vector<long> triggeredEffects;
+        std::vector<long> triggeredEffects;
         for (long nodeId : nodes) {
             SituationInstance& instance = instanceMap[nodeId];
             if (instance.state == SituationInstance::TRIGGERED) {
@@ -179,7 +179,7 @@ void SituationReasoner::backwardRetrospection(SituationGraph& graph) {
             const SituationNode& effectNode = graph.getNode(effectId);
             
             // Second iteration: collect cause situations with horizontal relations
-            vector<long> causeSituations;
+            std::vector<long> causeSituations;
             for (long causeId : effectNode.causes) {
                 const SituationRelation* relation = graph.getRelation(causeId, effectId);
                 if (relation && relation->type == SituationRelation::H) {
@@ -235,10 +235,10 @@ void SituationReasoner::downwardRetrospection(SituationGraph& graph) {
     // Process each layer from top to bottom
     for (int layer = 0; layer < numLayers; layer++) {
         DirectedGraph currentLayer = graph.getLayer(layer);
-        vector<long> nodes = currentLayer.topo_sort();
+        std::vector<long> nodes = currentLayer.topo_sort();
         
         // First iteration: collect triggered situations in this layer
-        vector<long> triggeredSituations;
+        std::vector<long> triggeredSituations;
         for (long nodeId : nodes) {
             SituationInstance& instance = instanceMap[nodeId];
             if (instance.state == SituationInstance::TRIGGERED) {
@@ -259,7 +259,7 @@ void SituationReasoner::downwardRetrospection(SituationGraph& graph) {
             const SituationNode& parentNode = graph.getNode(parentId);
             
             // Second iteration: collect child situations with vertical relations
-            vector<long> childSituations;
+            std::vector<long> childSituations;
             for (long childId : parentNode.evidences) {
                 const SituationRelation* relation = graph.getRelation(parentId, childId);
                 if (relation && relation->type == SituationRelation::V) {
@@ -311,8 +311,8 @@ SituationInstance::State SituationReasoner::determineState(long causeId, long ef
     }
     
     // Get all effects with type-H relations from this cause
-    vector<long> effects;
-    vector<SituationRelation::Relation> effectRelations;
+    std::vector<long> effects;
+    std::vector<SituationRelation::Relation> effectRelations;
     for (const auto& [nodeId, relation] : graph.getOutgoingRelations(causeId)) {
         if (relation.type == SituationRelation::H) {
             effects.push_back(nodeId);
@@ -384,8 +384,8 @@ SituationInstance::State SituationReasoner::determineChildState(long parentId, l
     }
     
     // Get all V-type child relations
-    vector<long> vChildren;
-    vector<SituationRelation::Relation> vRelations;
+    std::vector<long> vChildren;
+    std::vector<SituationRelation::Relation> vRelations;
     for (long evId : parentNode.evidences) {
         const SituationRelation* relation = graph.getRelation(parentId, evId);
         if (relation && relation->type == SituationRelation::V) {
@@ -471,7 +471,7 @@ void SituationReasoner::logInstanceState(const SituationInstance& instance) {
                            simTime());
 }
 
-SituationInstance::State SituationReasoner::combineStates(vector<SituationInstance::State>& stateBuffer) {
+SituationInstance::State SituationReasoner::combineStates(std::vector<SituationInstance::State>& stateBuffer) {
     if (stateBuffer.empty()) {
         return SituationInstance::UNTRIGGERED;
     }
@@ -502,26 +502,11 @@ SituationInstance::State SituationReasoner::combineStates(vector<SituationInstan
     return tr;
 }
 
-// set<long> SituationReasoner::reason(set<long> triggered, simtime_t current) {
-//     // Create a working copy of the situation graph
-//     SituationGraph workingGraph = sg;
-    
-//     EV_INFO << "Starting reasoning at time " << current << endl;
-    
-//     this->current = current;
-    
-//     // Clear state buffers
-//     for (auto& [id, instance] : instanceMap) {
-//         instance.stateBuffer.clear();
-//     }   
-    
-//     // Get operational situations that need to be triggered
-//     set<long> tOperational;
-//     DirectedGraph bottomLayer = workingGraph.getLayer(workingGraph.modelHeight() - 1);
-//     vector<long> bottoms = bottomLayer.topo_sort();  
-std::set<long> SituationReasoner::reason(std::set<long> triggered,
-        simtime_t current) {
+std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t current) {
     std::set<long> tOperational;
+    
+    // Create a working copy of the situation graph
+    SituationGraph workingGraph = sg;
 
 //    cout << "show triggered: ";
 //    util::printSet(triggered);
@@ -560,18 +545,18 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered,
             }
         }
     }
-    
+
     // Run belief propagation and retrospection
-    beliefPropagation(workingGraph);
-    backwardRetrospection(workingGraph);
-    downwardRetrospection(workingGraph);
+    // beliefPropagation(workingGraph);
+    // backwardRetrospection(workingGraph);
+    // downwardRetrospection(workingGraph);
     
     // Combine states from buffer for each situation
-    for (auto& [id, instance] : instanceMap) {
-        instance.state = combineStates(instance.stateBuffer);
-        // Clear buffer after combining
-        instance.stateBuffer.clear();
-    }
+    // for (auto& [id, instance] : instanceMap) {
+    //     instance.state = combineStates(instance.stateBuffer);
+    //     // Clear buffer after combining
+    //     instance.stateBuffer.clear();
+    // }
 
     // compute UNDETERMINED state
     for (int i = 0; i < sg.modelHeight(); i++) {
@@ -609,7 +594,6 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered,
     
     checkState(current);
 
-    // EV_INFO << "Ending reasoning at time " << current << endl;
     // reset transient situations
     for (auto &si : instanceMap) {
         if (si.second.next_start + si.second.duration <= current) {
@@ -634,6 +618,6 @@ void SituationReasoner::checkState(simtime_t current) {
 
 void SituationReasoner::updateRefinement(SituationGraph& graph) {
     // Create a Bayesian Network and perform update refinement
-    BayesianNetwork bn;
-    bn.updateRefinement(graph, instanceMap);
+//    BayesianNetwork bn;
+//    bn.updateRefinement(graph, instanceMap);
 }

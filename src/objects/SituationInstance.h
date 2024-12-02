@@ -36,32 +36,17 @@ public:
         TRIGGERED,      // Situation is active
         UNDETERMINED    // Situation state is unknown
     };
-
-    long id;                      // Unique identifier
-    int counter;                  // Occurrence counter
-    State state;                  // Current state
-    vector<State> stateBuffer;    // Buffer for state calculations
-    simtime_t duration;          // Duration of the situation
-    simtime_t cycle;             // Cycle time of the situation
-    
-    /**
-     * Multi-purpose time variable:
-     * 1. In Arranger: Next situation start time
-     * 2. In Reasoner: Current situation start time
     enum Type {
         NORMAL, HIDDEN
     };
-    enum State {
-        UNTRIGGERED, TRIGGERED, UNDETERMINED
-    };
-    long id;
-    int counter;
-    // 0 - normal source, 1 - hidden source
+    long id;                      // Unique identifier
+    int counter;                  // Occurrence counter
+    vector<State> stateBuffer;    // Buffer for state calculations
+    simtime_t duration;          // Duration of the situation
+    simtime_t cycle;             // Cycle time of the situation    
     Type type;
-    // 0 - untriggered, 1 - triggered, 2 - UNDETERMINED
     State state;
-    simtime_t duration;
-    simtime_t cycle;
+
     /*
      * a multi-purpose variable:
      * 1) next situation start time in Arranger, and
@@ -101,7 +86,7 @@ public:
      * Initializes a situation instance with default values.
      */
     SituationInstance() : 
-        id(-1), counter(0), state(UNTRIGGERED), 
+        id(-1), counter(0), state(UNTRIGGERED), type(NORMAL),
         duration(0), cycle(0), next_start(0),
         beliefValue(0.0), beliefThreshold(0.7), beliefUpdated(false) {
         stateBuffer.clear();
@@ -113,8 +98,8 @@ public:
      * @param duration Duration of the situation
      * @param cycle Cycle time of the situation
      */
-    SituationInstance(long id, simtime_t duration, simtime_t cycle) :
-        id(id), counter(0), state(UNTRIGGERED), 
+    SituationInstance(long id, Type type, simtime_t duration, simtime_t cycle) :
+        id(id), counter(0), state(UNTRIGGERED), type(NORMAL),
         duration(duration), cycle(cycle), next_start(0),
         beliefValue(0.0), beliefThreshold(0.7), beliefUpdated(false) {
         stateBuffer.clear();

@@ -37,10 +37,6 @@ class SituationEvolution;
 
 class SituationGraph {
 private:
-    map<long, SituationNode> situationMap;
-    typedef boost::tuple<long, long> edge_id;
-    map<edge_id, SituationRelation> relationMap;
-    vector<DirectedGraph> layers;
     // Reachability index
     vector<vector<bool>> *ri;
 public:
@@ -61,12 +57,12 @@ public:
     int modelHeight() const;
     SituationNode getNode(long id) const;
     const SituationRelation* getRelation(long src, long dest) const;
-    const 
+    const std::map<long, SituationRelation>& getOutgoingRelations(long nodeId) const;
     // void loadModel(const std::string &filename, SituationEvolution* arrangeer);
     // DirectedGraph getLayer (int index);
     // int modelHeight();
     // SituationNode getNode(long id);
-    // int numOfNodes();
+    int numOfNodes() const;
     void print();
     virtual ~SituationGraph();
 };

@@ -1,4 +1,5 @@
 #include "BayesianNetworkDlib.h"
+/*
 #include <stdexcept>
 #include <dlib/bayes_utils.h>
 
@@ -512,3 +513,4 @@ dlib::matrix<double> BayesianNetworkDlib::vectorToMatrix(const std::vector<doubl
     }
     return m;
 }
+*/

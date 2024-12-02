@@ -20,6 +20,8 @@
 
 // Project includes
 #include "SituationEvolution.h"
+#include "BNInferenceEngine.h"
+#include "../utils/ReasonerLogger.h"
 
 using namespace omnetpp;
 using namespace std;
@@ -59,7 +61,7 @@ private:
      * @param stateBuffer A vector of states to combine.
      * @return The combined state.
      */
-    SituationInstance::State combineStates(vector<SituationInstance::State>& stateBuffer);
+    SituationInstance::State combineStates(std::vector<SituationInstance::State>& stateBuffer);
 
     static std::vector<double> convertMapToVector(const std::map<long, double>& beliefMap);
     void logCausalReasoning(const SituationInstance& causeInstance,
@@ -112,7 +114,7 @@ public:
      */
     SituationReasoner();
     // return a set of triggered operational situations
-    set<long> reason(set<long> triggered, simtime_t current);
+    std::set<long> reason(std::set<long> triggered, simtime_t current);
     // reset durable situations if timeout
     void checkState(simtime_t current);
     

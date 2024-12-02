@@ -314,12 +314,14 @@ const std::map<long, SituationRelation>& SituationGraph::getOutgoingRelations(lo
     outgoing.clear();
     
     for (const auto& rel : relationMap) {
-        if (rel.first.get<0>() == nodeId) {  // If this relation starts from nodeId
-            outgoing[rel.first.get<1>()] = rel.second;  // Map destination node to relation
+        if (std::get<0>(rel.first) == nodeId) {  // If this relation starts from nodeId
+            outgoing[std::get<1>(rel.first)] = rel.second;  // Map destination node to relation
         }
     }
     return outgoing;
-int SituationGraph::numOfNodes(){
+}
+
+int SituationGraph::numOfNodes() const {
     return situationMap.size();
 }
 

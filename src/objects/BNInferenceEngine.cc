@@ -121,7 +121,7 @@ void BNInferenceEngine::loadModel(SituationGraph sg) {
 }
 
 void BNInferenceEngine::reason(SituationGraph sg,
-        std::map<int, SituationInstance> &instanceMap, simtime_t current) {
+        std::map<long, SituationInstance> &instanceMap, simtime_t current) {
     typedef dlib::set<unsigned long>::compare_1b_c set_type;
     typedef graph<set_type, set_type>::kernel_1a_c join_tree_type;
     join_tree_type join_tree;

@@ -1,6 +1,7 @@
 #ifndef BAYESIAN_NETWORK_DLIB_H_
 #define BAYESIAN_NETWORK_DLIB_H_
 
+/*
 #include <dlib/bayes_utils.h>
 #include <dlib/graph.h>
 #include <dlib/directed_graph.h>
@@ -90,5 +91,6 @@ private:
     std::vector<double> matrixToVector(const dlib::matrix<double>& m);
     dlib::matrix<double> vectorToMatrix(const std::vector<double>& v);
 };
+*/
 
 #endif // BAYESIAN_NETWORK_DLIB_H_

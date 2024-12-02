@@ -42,7 +42,7 @@ private:
 public:
     void loadModel(SituationGraph sg);
     void reason(SituationGraph sg,
-            std::map<int, SituationInstance> &instanceMap, simtime_t current);
+            std::map<long, SituationInstance> &instanceMap, simtime_t current);
     BNInferenceEngine();
     virtual ~BNInferenceEngine();
 };

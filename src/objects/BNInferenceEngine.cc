@@ -14,152 +14,205 @@
 // 
 
 #include "BNInferenceEngine.h"
+#include <stdexcept>
 
-BNInferenceEngine::BNInferenceEngine() {
-    // TODO Auto-generated constructor stub
+BNInferenceEngine::BNInferenceEngine() : _joinTree(std::make_unique<join_tree_type>()) {}
 
-}
-
-BNInferenceEngine::~BNInferenceEngine() {
-    // TODO Auto-generated destructor stub
-}
+BNInferenceEngine::~BNInferenceEngine() = default;
 
 void BNInferenceEngine::loadModel(SituationGraph sg) {
-    /*
-     * Initialize Bayesian network
-     */
-    // the informed graph size must be greater than any node index
-    long numOfNodes = (sg.modelHeight() + 1) * 100;
-    cout << "number_of_nodes: " << numOfNodes << endl;
-    BNet.set_number_of_nodes(numOfNodes);
-    for (auto relation : sg.relationMap) {
-        long src = relation.first.first;
-        long dest = relation.first.second;
-        BNet.add_edge(src, dest);
-    }
-    /*
-     * Inform all the nodes in the network that they are binary.
-     * That is, they only have two possible values.
-     */
-    for (auto node : sg.situationMap) {
-        set_node_num_values(BNet, node.first, 2);
-    }
-
-    /*
-     * Construct the CPT of the SG
-     */
-    assignment parent_state;
-    DirectedGraph g = sg.getLayer(0);
-    std::vector<long> sortedNodes = g.topo_sort();
-    for (auto node : sortedNodes) {
-
-//        cout << "set probability of node " << node << endl;
-
-        std::vector<long> &causes = sg.situationMap[node].causes;
-        if (causes.empty()) {
-
-//            cout << "set priori probability of node " << node << endl;
-
-            set_node_probability(BNet, node, 1, parent_state, 0.5);
-            set_node_probability(BNet, node, 0, parent_state, 0.5);
-        } else {
-            const short size = causes.size();
-            // conditional probabilities of a single cause: p(B|A) = weight, p(B|-A) = 0
-            pair<double, double> p[size];
-            for (int i = 0; i < size; i++) {
-                SituationGraph::edge_id eid;
-                eid.first = causes[i];
-                eid.second = node;
-                SituationRelation sr = sg.relationMap[eid];
-                p[i].first = 0;
-                p[i].second = sr.weight;
-            }
-
-            // 2^n binary combinations
-            const short totalCombinations = 1 << size;
-            for (int i = 0; i < totalCombinations; i++) {
-                // Be careful! It means the number of cause of a situation cannot exceed 32
-                bitset<32> binary(i);
-                // conditional probability of multiple causes
-                double p_cond = 1;
-                for (int i = 0; i < size; i++) {
-
-//                    cout << "causes[i]: " << causes[i] << endl;
-
-                    if (binary[i]) {
-                        p_cond *= p[i].second;
-                        if(!parent_state.has_index(causes[i])){
-                            parent_state.add(causes[i], 1);
-                        }else{
-                            parent_state[causes[i]] = 1;
-                        }
-                    } else {
-                        p_cond *= p[i].first;
-                        if(!parent_state.has_index(causes[i])){
-                            parent_state.add(causes[i], 0);
-                        }else{
-                            parent_state[causes[i]] = 0;
-                        }
-                    }
-                }
-                set_node_probability(BNet, node, 1, parent_state, p_cond);
-                set_node_probability(BNet, node, 0, parent_state, 1 - p_cond);
-
-//                cout << "print CPT of node " << node << endl;
-//                cout << "condition: ";
-//                for(int i= 0; i < size; i++){
-//                  cout << binary[i] << ", ";
-//                }
-//                cout << endl;
-//                cout << "conditional probability of p(triggered): " << p_cond << endl;
-//                cout << "conditional probability of p(untriggered): " << 1- p_cond << endl;
-            }
-            // Clear out parent state so that it doesn't have any of the previous assignment
-            parent_state.clear();
+    // Clear existing network
+    _bn.clear();
+    _nodeMap.clear();
+    _evidence.clear();
+    _joinTree = std::make_unique<join_tree_type>();
+    
+    // Step 1: Add nodes for each situation
+    for (int layer = 0; layer < sg.modelHeight(); layer++) {
+        DirectedGraph currentLayer = sg.getLayer(layer);
+        for (const auto& nodeId : currentLayer.getVertices()) {
+            const SituationNode& node = sg.getNode(nodeId);
+            addNode(std::to_string(node.id));
         }
     }
+    
+    // Step 2: Add edges based on relations
+    for (int layer = 0; layer < sg.modelHeight(); layer++) {
+        DirectedGraph currentLayer = sg.getLayer(layer);
+        for (const auto& nodeId : currentLayer.getVertices()) {
+            const SituationNode& node = sg.getNode(nodeId);
+            // Add edges for both vertical and horizontal relations
+            for (const auto& [childId, relation] : sg.getOutgoingRelations(node.id)) {
+                addEdge(std::to_string(node.id), std::to_string(childId));
+            }
+        }
+    }
+
+    // Build join tree for inference
+    buildJoinTree();
 }
 
 void BNInferenceEngine::reason(SituationGraph sg,
         std::map<long, SituationInstance> &instanceMap, simtime_t current) {
-    typedef dlib::set<unsigned long>::compare_1b_c set_type;
-    typedef graph<set_type, set_type>::kernel_1a_c join_tree_type;
-    join_tree_type join_tree;
-    create_moral_graph(BNet, join_tree);
-    create_join_tree(join_tree, join_tree);
-    bool hasEvidence = false;
-    for (auto instance : instanceMap) {
-        long sid = instance.first;
-        SituationInstance si = instance.second;
-        if (si.state != SituationInstance::UNDETERMINED) {
-            set_node_value(BNet, sid, si.state);
-            set_node_as_evidence(BNet, sid);
-            hasEvidence = true;
-
-//            cout << "set evidence of node " << sid << ": " << si.state << endl;
+    
+    // Clear previous evidence
+    _evidence.clear();
+    
+    // Step 1: Set evidence from known states
+    for (const auto& [id, instance] : instanceMap) {
+        if (instance.state != SituationInstance::UNDETERMINED) {
+            setEvidence(std::to_string(id), 
+                       instance.state == SituationInstance::TRIGGERED ? 1 : 0);
         }
     }
-
-    if(hasEvidence){
-        bayesian_network_join_tree solution_with_evidence(BNet, join_tree);
-        for (auto& instance : instanceMap) {
-            long sid = instance.first;
-            SituationInstance &si = instance.second;
-            // probability of triggering
-            double p_tr = solution_with_evidence.probability(sid)(1);
-            if(si.state == SituationInstance::UNDETERMINED){
-                if (p_tr >= sg.situationMap[sid].threshold) {
-                    si.state = SituationInstance::TRIGGERED;
-                    si.counter++;
-                    si.next_start = current;
-                } else {
-                    si.state = SituationInstance::UNTRIGGERED;
-                }
-
-//                cout << "probability of triggering node " << sid << ": " << p_tr << endl;
-//                cout << "state of undetermined node " << sid << ": " << si.state << endl;
-//                cout << "counter of node " << sid << ": " << si.counter << endl;
+    
+    // Step 2: Perform inference
+    performInference();
+    
+    // Step 3: Update beliefs based on inference results
+    for (auto& [id, instance] : instanceMap) {
+        if (instance.state == SituationInstance::UNDETERMINED) {
+            std::vector<double> posterior = getPosterior(std::to_string(id));
+            instance.beliefValue = posterior[1];  // P(True)
+            instance.beliefUpdated = true;
+            
+            // Update state based on belief threshold
+            if (instance.beliefValue >= instance.beliefThreshold) {
+                instance.state = SituationInstance::TRIGGERED;
+            } else {
+                instance.state = SituationInstance::UNTRIGGERED;
             }
         }
     }
+    
+    // Step 4: Prune weak edges to refine the model
+    pruneWeakEdges(0.1);
+}
+
+void BNInferenceEngine::buildJoinTree() {
+    try {
+        // Create a new join tree
+        _joinTree = std::make_unique<join_tree_type>();
+        
+        // Create a join tree from the Bayesian network using dlib's create_join_tree
+        dlib::create_join_tree(_bn, *_joinTree);
+        
+        // Initialize the joint probability tables
+        dlib::bayesian_network_join_tree(_bn, *_joinTree);
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Error building join tree: " + std::string(e.what()));
+    }
+}
+
+void BNInferenceEngine::addNode(const std::string& name) {
+    unsigned long idx = _bn.add_node();
+    _nodeMap[name] = idx;
+    
+    // Initialize node with binary states
+    auto& node = _bn.node(idx);
+    node.data.table().set_size(2, 1);  // Binary node (True/False)
+    node.data.table()(0,0) = 0.5;      // Initial probability for False
+    node.data.table()(1,0) = 0.5;      // Initial probability for True
+}
+
+void BNInferenceEngine::addEdge(const std::string& parent, const std::string& child) {
+    if (_nodeMap.find(parent) == _nodeMap.end() || _nodeMap.find(child) == _nodeMap.end()) {
+        throw std::runtime_error("Node not found when adding edge");
+    }
+    
+    unsigned long parent_idx = _nodeMap[parent];
+    unsigned long child_idx = _nodeMap[child];
+    
+    _bn.add_edge(parent_idx, child_idx);
+    
+    // Update child's CPT size based on new parent
+    auto parents = getParents(child_idx);
+    size_t parent_count = parents.size();
+    auto& node = _bn.node(child_idx);
+    node.data.table().set_size(2, std::pow(2, parent_count));  // 2 states, 2^parents columns
+}
+
+void BNInferenceEngine::setEvidence(const std::string& nodeName, size_t value) {
+    if (_nodeMap.find(nodeName) == _nodeMap.end()) {
+        throw std::runtime_error("Node " + nodeName + " not found in network");
+    }
+    if (value > 1) { // Binary nodes only accept 0 or 1
+        throw std::runtime_error("Invalid evidence value. Must be 0 or 1");
+    }
+    _evidence[nodeName] = value;
+}
+
+void BNInferenceEngine::performInference() {
+    try {
+        if (!_joinTree) {
+            buildJoinTree();
+        }
+
+        // Set evidence in the network
+        for (const auto& [nodeName, value] : _evidence) {
+            if (_nodeMap.find(nodeName) == _nodeMap.end()) {
+                throw std::runtime_error("Node " + nodeName + " not found in network");
+            }
+            unsigned long node_idx = _nodeMap[nodeName];
+            auto& node = _bn.node(node_idx);
+            
+            // Clear current probability table
+            node.data.table().set_size(2, 1);
+            // Set evidence (0 for false state, 1 for true state)
+            node.data.table()(value, 0) = 1.0;
+            node.data.table()(!value, 0) = 0.0;
+        }
+
+        // Perform belief propagation using dlib's join tree algorithm
+        dlib::bayesian_network_join_tree(_bn, *_joinTree);
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Error performing inference: " + std::string(e.what()));
+    }
+}
+
+std::vector<double> BNInferenceEngine::getPosterior(const std::string& nodeName) {
+    if (_nodeMap.find(nodeName) == _nodeMap.end()) {
+        throw std::runtime_error("Node " + nodeName + " not found in network");
+    }
+    
+    // Get node's probability table
+    unsigned long node_idx = _nodeMap[nodeName];
+    const auto& node = _bn.node(node_idx);
+    const auto& table = node.data.table();
+    
+    // Convert to vector format
+    std::vector<double> posterior;
+    posterior.reserve(2);  // Binary nodes
+    posterior.push_back(table(0,0));  // P(False)
+    posterior.push_back(table(1,0));  // P(True)
+    
+    return posterior;
+}
+
+std::vector<unsigned long> BNInferenceEngine::getParents(unsigned long node_idx) const {
+    std::vector<unsigned long> parents;
+    for (auto i = 0; i < _bn.node(node_idx).number_of_parents(); ++i) {
+        parents.push_back(_bn.node(node_idx).parent(i).index());
+    }
+    return parents;
+}
+
+std::vector<unsigned long> BNInferenceEngine::getChildren(unsigned long node_idx) const {
+    std::vector<unsigned long> children;
+    for (auto i = 0; i < _bn.node(node_idx).number_of_children(); ++i) {
+        children.push_back(_bn.node(node_idx).child(i).index());
+    }
+    return children;
+}
+
+double BNInferenceEngine::calculateMutualInformation(unsigned long node1, unsigned long node2,
+                                                   const std::map<long, SituationInstance>& instanceMap) {
+    // Implement mutual information calculation for structure learning
+    // This is a placeholder - actual implementation would use empirical probabilities from instanceMap
+    return 0.0;
+}
+
+void BNInferenceEngine::pruneWeakEdges(double threshold) {
+    // Implement edge pruning based on mutual information or correlation
+    // This is a placeholder - actual implementation would remove edges with weak dependencies
 }

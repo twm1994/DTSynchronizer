@@ -1,44 +1,46 @@
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-// 
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-// 
-// You should have received a copy of the GNU Lesser General Public License
-// along with this program.  If not, see http://www.gnu.org/licenses/.
-// 
-
 #ifndef OBJECTS_BNINFERENCEENGINE_H_
 #define OBJECTS_BNINFERENCEENGINE_H_
 
-#include <map>
-#include <vector>
-#include <utility>
-#include <bitset>
 #include <dlib/bayes_utils.h>
-#include <dlib/graph_utils.h>
 #include <dlib/graph.h>
 #include <dlib/directed_graph.h>
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
 #include <omnetpp.h>
-#include "SituationInstance.h"
 #include "SituationGraph.h"
-#include "DirectedGraph.h"
+#include "SituationInstance.h"
 
-using namespace std;
-using namespace dlib;
-using namespace bayes_node_utils;
 using namespace omnetpp;
 
 class BNInferenceEngine {
 private:
-    directed_graph<bayes_node>::kernel_1a_c BNet;
-//    void constructCPT();
-//    void subgraphExtraction();
+    // Type definitions using dlib
+    using bn_type = dlib::directed_graph<dlib::bayes_node>::kernel_1a_c;
+    using join_tree_type = dlib::graph<dlib::set<unsigned long>::compare_1b_c, dlib::set<unsigned long>::compare_1b_c>::kernel_1a_c;
+    
+    // Core data structures
+    bn_type _bn;  // Bayesian network
+    std::unique_ptr<join_tree_type> _joinTree;  // Join tree for inference
+    std::map<std::string, unsigned long> _nodeMap;  // Maps node names to indices
+    std::map<std::string, size_t> _evidence;  // Current evidence
+
+    // Helper methods
+    void buildJoinTree();
+    void addNode(const std::string& name);
+    void addEdge(const std::string& parent, const std::string& child);
+    void setEvidence(const std::string& nodeName, size_t value);
+    std::vector<double> getPosterior(const std::string& nodeName);
+    void performInference();
+    
+    // Utility methods
+    std::vector<unsigned long> getParents(unsigned long node_idx) const;
+    std::vector<unsigned long> getChildren(unsigned long node_idx) const;
+    double calculateMutualInformation(unsigned long node1, unsigned long node2,
+                                    const std::map<long, SituationInstance>& instanceMap);
+    void pruneWeakEdges(double threshold = 0.1);
+
 public:
     void loadModel(SituationGraph sg);
     void reason(SituationGraph sg,

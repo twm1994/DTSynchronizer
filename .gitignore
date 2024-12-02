@@ -20,3 +20,7 @@ simulations**
 **compile_flags.txt
 **DTSynchronizer
 class-diagram.png
+.vscode/c_cpp_properties.json
+.vscode/settings.json
+logs/reasoner.csv
+logs/reasoner.json

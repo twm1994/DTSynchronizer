@@ -502,25 +502,36 @@ SituationInstance::State SituationReasoner::combineStates(vector<SituationInstan
     return tr;
 }
 
-set<long> SituationReasoner::reason(set<long> triggered, simtime_t current) {
-    // Create a working copy of the situation graph
-    SituationGraph workingGraph = sg;
+// set<long> SituationReasoner::reason(set<long> triggered, simtime_t current) {
+//     // Create a working copy of the situation graph
+//     SituationGraph workingGraph = sg;
     
-    EV_INFO << "Starting reasoning at time " << current << endl;
+//     EV_INFO << "Starting reasoning at time " << current << endl;
     
-    this->current = current;
+//     this->current = current;
     
-    // Clear state buffers
-    for (auto& [id, instance] : instanceMap) {
-        instance.stateBuffer.clear();
-    }   
+//     // Clear state buffers
+//     for (auto& [id, instance] : instanceMap) {
+//         instance.stateBuffer.clear();
+//     }   
     
-    // Get operational situations that need to be triggered
-    set<long> tOperational;
-    DirectedGraph bottomLayer = workingGraph.getLayer(workingGraph.modelHeight() - 1);
-    vector<long> bottoms = bottomLayer.topo_sort();  
+//     // Get operational situations that need to be triggered
+//     set<long> tOperational;
+//     DirectedGraph bottomLayer = workingGraph.getLayer(workingGraph.modelHeight() - 1);
+//     vector<long> bottoms = bottomLayer.topo_sort();  
+std::set<long> SituationReasoner::reason(std::set<long> triggered,
+        simtime_t current) {
+    std::set<long> tOperational;
+
+//    cout << "show triggered: ";
+//    util::printSet(triggered);
+
+    int numOfLayers = sg.modelHeight();
+    // trigger bottom layer situations
+    DirectedGraph g = sg.getLayer(numOfLayers - 1);
+    std::vector<long> bottoms = g.topo_sort();
     for (auto bottom : bottoms) {
-        SituationInstance& instance = instanceMap[bottom];
+        SituationInstance &instance = instanceMap[bottom];
         auto it = triggered.find(bottom);
         if (it != triggered.end()) {
             instance.state = SituationInstance::TRIGGERED;
@@ -530,13 +541,13 @@ set<long> SituationReasoner::reason(set<long> triggered, simtime_t current) {
     }
     for (int i = workingGraph.modelHeight() - 1; i > 0; i--) {
         DirectedGraph g1 = sg.getLayer(i - 1);
-        vector<long> uppers = g1.topo_sort();
+        std::vector<long> uppers = g1.topo_sort();
         for (auto upper : uppers) {
-            SituationInstance& instance = instanceMap[upper];
+            SituationInstance &instance = instanceMap[upper];
             SituationNode node = sg.getNode(instance.id);
             bool toTrigger = true;
             for (auto evidence : node.evidences) {
-                SituationInstance& es = instanceMap[evidence];
+                SituationInstance &es = instanceMap[evidence];
                 if (es.counter <= instance.counter) {
                     toTrigger = false;
                     break;
@@ -562,6 +573,32 @@ set<long> SituationReasoner::reason(set<long> triggered, simtime_t current) {
         instance.stateBuffer.clear();
     }
 
+    // compute UNDETERMINED state
+    for (int i = 0; i < sg.modelHeight(); i++) {
+        DirectedGraph g = sg.getLayer(i);
+        std::vector<long> sortedNodes = g.topo_sort();
+        std::reverse(sortedNodes.begin(), sortedNodes.end());
+        for (auto node : sortedNodes) {
+            SituationInstance &si = instanceMap[node];
+            if (si.state == SituationInstance::TRIGGERED
+                    || si.state == SituationInstance::UNDETERMINED) {
+                std::vector<long> causes = sg.getNode(node).causes;
+                for (auto cause : causes) {
+                    SituationInstance &ci = instanceMap[cause];
+                    if (ci.state != SituationInstance::TRIGGERED) {
+                        ci.state = SituationInstance::UNDETERMINED;
+//                        cout << "situation " << ci.id << " is undetermined" << endl;
+                    }
+                }
+            }
+        }
+    }
+
+    // update refinement
+    BNInferenceEngine engine;
+    engine.loadModel(sg);
+    engine.reason(sg, instanceMap, current);
+
     // get operational situations from the bottom layer
     for (auto bottom : bottoms) {
         SituationInstance& instance = instanceMap[bottom];
@@ -572,7 +609,17 @@ set<long> SituationReasoner::reason(set<long> triggered, simtime_t current) {
     
     checkState(current);
 
-    EV_INFO << "Ending reasoning at time " << current << endl;
+    // EV_INFO << "Ending reasoning at time " << current << endl;
+    // reset transient situations
+    for (auto &si : instanceMap) {
+        if (si.second.next_start + si.second.duration <= current) {
+            si.second.state = SituationInstance::UNTRIGGERED;
+        }
+    }
+
+//    cout << "print situation graph instance" << endl;
+//    print();
+
     return tOperational;
 }
 

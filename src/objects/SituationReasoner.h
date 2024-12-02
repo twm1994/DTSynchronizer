@@ -16,13 +16,10 @@
 #ifndef OBJECTS_SITUATIONREASONER_H_
 #define OBJECTS_SITUATIONREASONER_H_
 
-// OMNeT++ includes
 #include <omnetpp.h>
 
 // Project includes
 #include "SituationEvolution.h"
-#include "BayesianNetwork.h"
-#include "../utils/ReasonerLogger.h"
 
 using namespace omnetpp;
 using namespace std;
@@ -114,21 +111,9 @@ public:
      * Constructor.
      */
     SituationReasoner();
-    
-    /**
-     * Return a set of triggered operational situations.
-     * 
-     * @param triggered A set of triggered situations.
-     * @param current The current simulation time.
-     * @return A set of triggered operational situations.
-     */
+    // return a set of triggered operational situations
     set<long> reason(set<long> triggered, simtime_t current);
-    
-    /**
-     * Reset durable situations if timeout.
-     * 
-     * @param current The current simulation time.
-     */
+    // reset durable situations if timeout
     void checkState(simtime_t current);
     
     /**

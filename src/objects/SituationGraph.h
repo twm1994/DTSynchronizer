@@ -19,7 +19,7 @@
 // Standard library includes
 #include <map>
 #include <vector>
-
+#include <utility>
 // Boost includes
 #include <boost/tuple/tuple.hpp>
 #include <boost/tuple/tuple_comparison.hpp>
@@ -31,7 +31,6 @@
 #include "SituationRelation.h"
 
 using namespace std;
-using namespace boost::tuples;
 
 // Forward declaration
 class SituationEvolution;
@@ -44,7 +43,12 @@ private:
     vector<DirectedGraph> layers;
     // Reachability index
     vector<vector<bool>> *ri;
-
+public:
+    map<long, SituationNode> situationMap;
+    typedef pair<long, long> edge_id;
+    map<edge_id, SituationRelation> relationMap;
+    vector<DirectedGraph> layers;
+private:
     void buildReachabilityMatrix(set<long>& vertices, set<edge_id>& edges);
 
 public:
@@ -57,7 +61,12 @@ public:
     int modelHeight() const;
     SituationNode getNode(long id) const;
     const SituationRelation* getRelation(long src, long dest) const;
-    const std::map<long, SituationRelation>& getOutgoingRelations(long nodeId) const;
+    const 
+    // void loadModel(const std::string &filename, SituationEvolution* arrangeer);
+    // DirectedGraph getLayer (int index);
+    // int modelHeight();
+    // SituationNode getNode(long id);
+    // int numOfNodes();
     void print();
     virtual ~SituationGraph();
 };

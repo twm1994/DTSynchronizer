@@ -16,6 +16,25 @@
 #include "SituationInstance.h"
 
 // Implementation moved to header file
+SituationInstance::SituationInstance() {
+    id = -1;
+    counter = 0;
+    type = Type::NORMAL;
+    state = State::UNTRIGGERED;
+    cycle = 0;
+    next_start = 0;
+}
+
+SituationInstance::SituationInstance(long id, Type type, simtime_t duration,
+        simtime_t cycle) {
+    this->id = id;
+    this->counter = 0;
+    this->type = type;
+    this->state = State::UNTRIGGERED;
+    this->duration = duration;
+    this->cycle = cycle;
+    this->next_start = cycle;
+}
 
 SituationInstance::~SituationInstance() {
     // TODO Auto-generated destructor stub

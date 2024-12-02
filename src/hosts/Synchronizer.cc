@@ -25,7 +25,7 @@ Synchronizer::Synchronizer() {
     /*
      * Construct a situation graph and a situation inference engine
      */
-    sr.initModel("../files/SG.json");
+    sr.initModel("../files/SG2.json");
     sog.setModel(sr.getModel());
     sog.setModelInstance(&sr);
 
@@ -94,7 +94,7 @@ void Synchronizer::handleMessage(cMessage *msg) {
 
         cout << endl << "current time slice: " << current << endl;
 
-        set<long> triggered;
+        std::set<long> triggered;
 
 //        cout << "print buffer counters: ";
 //        util::printMap(bufferCounters);
@@ -110,16 +110,16 @@ void Synchronizer::handleMessage(cMessage *msg) {
          * The reasoning result contains a list of triggered observable situations,
          * which is supposed to tell SOG to generate the corresponding simulation events.
          */
-        set<long> tOperations = sr.reason(triggered, current);
+        std::set<long> tOperations = sr.reason(triggered, current);
 
-        queue<vector<VirtualOperation>> opSets = sog.generateOperations(
+        std::queue<std::vector<VirtualOperation>> opSets = sog.generateOperations(
                 tOperations);
 
         cout << "Operation sets are: " << endl;
         util::printComplexQueue(opSets);
 
         while (!opSets.empty()) {
-            vector<VirtualOperation> operations = opSets.front();
+            std::vector<VirtualOperation> operations = opSets.front();
             for (auto op : operations) {
                 SimEvent *event = new SimEvent(msg::SIM_EVENT);
                 event->setEventID(op.id);

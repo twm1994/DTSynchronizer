@@ -32,7 +32,6 @@
 // Project includes
 #include "SituationEvolution.h"
 
-using namespace omnetpp;
 namespace pt = boost::property_tree;
 
 SituationGraph::SituationGraph() {
@@ -131,7 +130,9 @@ void SituationGraph::buildReachabilityMatrix(set<long>& vertices, set<edge_id>& 
     for (auto src : vertices) {
         for (auto dest : vertices) {
             if (src != dest) {
-                edge_id eid(src, dest);
+                edge_id eid;
+                eid.first = src;
+                eid.second = dest;
                 if (edges.count(eid)) {
                     int i = situationMap[src].index;
                     int j = situationMap[dest].index;
@@ -182,12 +183,13 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
             index++;
 
             double duration = node.second.get<double>("Duration") / 1000.0;
+            SituationInstance::Type type = (SituationInstance::Type)node.second.get<short>("type");
             if(node.second.get<string>("Cycle") != "null"){
                 // cycle is in millisecond
                 double cycle = node.second.get<double>("Cycle") / 1000.0;
-                se->addInstance(id, SimTime(duration), SimTime(cycle));
+                se->addInstance(id, type, SimTime(duration), SimTime(cycle));
             }else{
-                se->addInstance(id, SimTime(duration));
+                se->addInstance(id, type, SimTime(duration));
             }
 
             if (!node.second.get_child("Predecessors").empty()) {
@@ -211,7 +213,9 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
                         relation.relation = SituationRelation::SOLE;
                     }
                     relation.weight = pre.second.get<double>("Weight-x");
-                    edge_id eid(src, relation.dest);
+                    edge_id eid;
+                    eid.first = src;
+                    eid.second = relation.dest;
                     relationMap[eid] = relation;
                     edges.insert(eid);
                 }
@@ -238,9 +242,13 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
                         relation.relation = SituationRelation::SOLE;
                     }
                     relation.weight = chd.second.get<double>("Weight-y");
-                    edge_id eid(src, relation.dest);
+                    edge_id eid;
+                    eid.first = src;
+                    eid.second = relation.dest;
                     relationMap[eid] = relation;
-                    edge_id reid(relation.dest, src);
+                    edge_id reid;
+                    reid.first = relation.dest;
+                    reid.second = src;
                     edges.insert(eid);
                     edges.insert(reid);
                 }
@@ -311,6 +319,8 @@ const std::map<long, SituationRelation>& SituationGraph::getOutgoingRelations(lo
         }
     }
     return outgoing;
+int SituationGraph::numOfNodes(){
+    return situationMap.size();
 }
 
 void SituationGraph::print() {

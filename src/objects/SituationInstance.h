@@ -16,12 +16,12 @@
 #ifndef OBJECTS_SITUATIONINSTANCE_H_
 #define OBJECTS_SITUATIONINSTANCE_H_
 
-#include <omnetpp.h>
 #include <iostream>
 #include <vector>
 #include <map>
 #include <string>
 #include "SituationNode.h"
+#include <omnetpp.h>
 
 using namespace std;
 using namespace omnetpp;
@@ -48,6 +48,24 @@ public:
      * Multi-purpose time variable:
      * 1. In Arranger: Next situation start time
      * 2. In Reasoner: Current situation start time
+    enum Type {
+        NORMAL, HIDDEN
+    };
+    enum State {
+        UNTRIGGERED, TRIGGERED, UNDETERMINED
+    };
+    long id;
+    int counter;
+    // 0 - normal source, 1 - hidden source
+    Type type;
+    // 0 - untriggered, 1 - triggered, 2 - UNDETERMINED
+    State state;
+    simtime_t duration;
+    simtime_t cycle;
+    /*
+     * a multi-purpose variable:
+     * 1) next situation start time in Arranger, and
+     * 2) current situation start time in Reasoner.
      */
     simtime_t next_start;
 
@@ -101,7 +119,8 @@ public:
         beliefValue(0.0), beliefThreshold(0.7), beliefUpdated(false) {
         stateBuffer.clear();
     }
-
+    // SituationInstance();
+    // SituationInstance(long id, Type type, simtime_t duration, simtime_t cycle);
     virtual ~SituationInstance();
 
     /**
@@ -131,9 +150,10 @@ public:
 };
 
 inline std::ostream& operator<<(std::ostream &os, const SituationInstance &si) {
-    os << "situation (" << si.id << "): counter " << si.counter << ", state "
-            << si.state << ", duration " << si.duration << ", cycle "
-            << si.cycle << ", next_start " << si.next_start << endl;
+    os << "situation (" << si.id << "): counter " << si.counter << ", type "
+            << si.type << ", state " << si.state << ", duration " << si.duration
+            << ", cycle " << si.cycle << ", next_start " << si.next_start
+            << endl;
     return os;
 }
 

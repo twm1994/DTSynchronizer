@@ -4,7 +4,7 @@ CXXFLAGS += -std=c++20
 # INCLUDE_PATH += -I/usr/local/include
 
 # Base library configuration, link agrum library here to avoid archetecture-related build errors on 
-LIBS += -L/usr/local/lib -lagrum -lpthread
+# LIBS += -L/usr/local/lib -lagrum -lpthread
 
 # Common compiler flags for all platforms
 CXXFLAGS += -fvisibility=hidden -fvisibility-inlines-hidden
@@ -20,7 +20,7 @@ ifeq ($(OS),Windows_NT)
     CXXFLAGS += -fPIC
     
     # Windows-specific linking
-    LIBS := -L/usr/local/lib -Wl,-Bstatic -lagrum -Wl,-Bdynamic -lpthread $(LIBS)
+    # LIBS := -L/usr/local/lib -Wl,-Bstatic -lagrum -Wl,-Bdynamic -lpthread $(LIBS)
     
     # Additional Windows-specific flags
     CXXFLAGS += -DWIN32_LEAN_AND_MEAN -DNOMINMAX

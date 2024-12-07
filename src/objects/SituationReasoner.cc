@@ -524,65 +524,63 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
             instance.next_start = current;
         }
     }
-    for (int i = workingGraph.modelHeight() - 1; i > 0; i--) {
-        DirectedGraph g1 = sg.getLayer(i - 1);
-        std::vector<long> uppers = g1.topo_sort();
-        for (auto upper : uppers) {
-            SituationInstance &instance = instanceMap[upper];
-            SituationNode node = sg.getNode(instance.id);
-            bool toTrigger = true;
-            for (auto evidence : node.evidences) {
-                SituationInstance &es = instanceMap[evidence];
-                if (es.counter <= instance.counter) {
-                    toTrigger = false;
-                    break;
-                }
-            }
-            if (toTrigger) {
-                instance.state = SituationInstance::TRIGGERED;
-                instance.counter++;
-                instance.next_start = current;
-            }
-        }
-    }
-
-    // Run belief propagation and retrospection
-    // beliefPropagation(workingGraph);
-    // backwardRetrospection(workingGraph);
-    // downwardRetrospection(workingGraph);
-    
-    // Combine states from buffer for each situation
-    // for (auto& [id, instance] : instanceMap) {
-    //     instance.state = combineStates(instance.stateBuffer);
-    //     // Clear buffer after combining
-    //     instance.stateBuffer.clear();
+    // for (int i = workingGraph.modelHeight() - 1; i > 0; i--) {
+    //     DirectedGraph g1 = sg.getLayer(i - 1);
+    //     std::vector<long> uppers = g1.topo_sort();
+    //     for (auto upper : uppers) {
+    //         SituationInstance &instance = instanceMap[upper];
+    //         SituationNode node = sg.getNode(instance.id);
+    //         bool toTrigger = true;
+    //         for (auto evidence : node.evidences) {
+    //             SituationInstance &es = instanceMap[evidence];
+    //             if (es.counter <= instance.counter) {
+    //                 toTrigger = false;
+    //                 break;
+    //             }
+    //         }
+    //         if (toTrigger) {
+    //             instance.state = SituationInstance::TRIGGERED;
+    //             instance.counter++;
+    //             instance.next_start = current;
+    //         }
+    //     }
     // }
 
-    // compute UNDETERMINED state
-    for (int i = 0; i < sg.modelHeight(); i++) {
-        DirectedGraph g = sg.getLayer(i);
-        std::vector<long> sortedNodes = g.topo_sort();
-        std::reverse(sortedNodes.begin(), sortedNodes.end());
-        for (auto node : sortedNodes) {
-            SituationInstance &si = instanceMap[node];
-            if (si.state == SituationInstance::TRIGGERED
-                    || si.state == SituationInstance::UNDETERMINED) {
-                std::vector<long> causes = sg.getNode(node).causes;
-                for (auto cause : causes) {
-                    SituationInstance &ci = instanceMap[cause];
-                    if (ci.state != SituationInstance::TRIGGERED) {
-                        ci.state = SituationInstance::UNDETERMINED;
-//                        cout << "situation " << ci.id << " is undetermined" << endl;
-                    }
-                }
-            }
-        }
+    // Run belief propagation and retrospection
+    beliefPropagation(workingGraph);
+    backwardRetrospection(workingGraph);
+    downwardRetrospection(workingGraph);
+    
+    // Combine states from buffer for each situation
+    for (auto& [id, instance] : instanceMap) {
+        instance.state = combineStates(instance.stateBuffer);
+        // Clear buffer after combining
+        instance.stateBuffer.clear();
     }
 
+//     // compute UNDETERMINED state
+//     for (int i = 0; i < sg.modelHeight(); i++) {
+//         DirectedGraph g = sg.getLayer(i);
+//         std::vector<long> sortedNodes = g.topo_sort();
+//         std::reverse(sortedNodes.begin(), sortedNodes.end());
+//         for (auto node : sortedNodes) {
+//             SituationInstance &si = instanceMap[node];
+//             if (si.state == SituationInstance::TRIGGERED
+//                     || si.state == SituationInstance::UNDETERMINED) {
+//                 std::vector<long> causes = sg.getNode(node).causes;
+//                 for (auto cause : causes) {
+//                     SituationInstance &ci = instanceMap[cause];
+//                     if (ci.state != SituationInstance::TRIGGERED) {
+//                         ci.state = SituationInstance::UNDETERMINED;
+// //                        cout << "situation " << ci.id << " is undetermined" << endl;
+//                     }
+//                 }
+//             }
+//         }
+//     }
+
     // update refinement
-    BNInferenceEngine engine;
-    engine.loadModel(sg);
-    engine.reason(sg, instanceMap, current);
+    updateRefinement(workingGraph);
 
     // get operational situations from the bottom layer
     for (auto bottom : bottoms) {
@@ -618,6 +616,8 @@ void SituationReasoner::checkState(simtime_t current) {
 
 void SituationReasoner::updateRefinement(SituationGraph& graph) {
     // Create a Bayesian Network and perform update refinement
-//    BayesianNetwork bn;
-//    bn.updateRefinement(graph, instanceMap);
+    // TODO rewrite BNInferenceEngine::reason with methods from aGrUM version 
+    BNInferenceEngine engine;
+    engine.loadModel(graph);
+    //engine.reason(graph, instanceMap, current);
 }

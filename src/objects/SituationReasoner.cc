@@ -508,12 +508,9 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
     // Create a working copy of the situation graph
     SituationGraph workingGraph = sg;
 
-//    cout << "show triggered: ";
-//    util::printSet(triggered);
-
-    int numOfLayers = sg.modelHeight();
+    int numOfLayers = workingGraph.modelHeight();
     // trigger bottom layer situations
-    DirectedGraph g = sg.getLayer(numOfLayers - 1);
+    DirectedGraph g = workingGraph.getLayer(numOfLayers - 1);
     std::vector<long> bottoms = g.topo_sort();
     for (auto bottom : bottoms) {
         SituationInstance &instance = instanceMap[bottom];
@@ -550,59 +547,36 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
     beliefPropagation(workingGraph);
     backwardRetrospection(workingGraph);
     downwardRetrospection(workingGraph);
-    
-    // Combine states from buffer for each situation
-    for (auto& [id, instance] : instanceMap) {
-        instance.state = combineStates(instance.stateBuffer);
-        // Clear buffer after combining
-        instance.stateBuffer.clear();
-    }
 
-//     // compute UNDETERMINED state
-//     for (int i = 0; i < sg.modelHeight(); i++) {
-//         DirectedGraph g = sg.getLayer(i);
-//         std::vector<long> sortedNodes = g.topo_sort();
-//         std::reverse(sortedNodes.begin(), sortedNodes.end());
-//         for (auto node : sortedNodes) {
-//             SituationInstance &si = instanceMap[node];
-//             if (si.state == SituationInstance::TRIGGERED
-//                     || si.state == SituationInstance::UNDETERMINED) {
-//                 std::vector<long> causes = sg.getNode(node).causes;
-//                 for (auto cause : causes) {
-//                     SituationInstance &ci = instanceMap[cause];
-//                     if (ci.state != SituationInstance::TRIGGERED) {
-//                         ci.state = SituationInstance::UNDETERMINED;
-// //                        cout << "situation " << ci.id << " is undetermined" << endl;
-//                     }
-//                 }
-//             }
-//         }
-//     }
-
-    // update refinement
+    // Update refinement with Bayesian Network reasoning
     updateRefinement(workingGraph);
 
-    // get operational situations from the bottom layer
+    // Fetch the bottom layer and trigger operational situations
     for (auto bottom : bottoms) {
         SituationInstance& instance = instanceMap[bottom];
         if (instance.state == SituationInstance::TRIGGERED && instance.next_start == current) {
             tOperational.insert(instance.id);
         }
     }
-    
+
+    // Check and update state
     checkState(current);
 
-    // reset transient situations
+    // Reset transient situations
     for (auto &si : instanceMap) {
         if (si.second.next_start + si.second.duration <= current) {
             si.second.state = SituationInstance::UNTRIGGERED;
         }
     }
 
-//    cout << "print situation graph instance" << endl;
-//    print();
-
     return tOperational;
+}
+
+void SituationReasoner::updateRefinement(SituationGraph& graph) {
+    // Create a Bayesian Network and perform update refinement
+    BNInferenceEngine engine;
+    engine.loadModel(graph);
+    engine.reason(graph, instanceMap, current);
 }
 
 void SituationReasoner::checkState(simtime_t current) {
@@ -612,12 +586,4 @@ void SituationReasoner::checkState(simtime_t current) {
             si.second.state = SituationInstance::UNTRIGGERED;
         }
     }
-}
-
-void SituationReasoner::updateRefinement(SituationGraph& graph) {
-    // Create a Bayesian Network and perform update refinement
-    // TODO rewrite BNInferenceEngine::reason with methods from aGrUM version 
-    BNInferenceEngine engine;
-    engine.loadModel(graph);
-    engine.reason(graph, instanceMap, current);
 }

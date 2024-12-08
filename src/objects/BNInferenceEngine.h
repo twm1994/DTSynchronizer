@@ -107,7 +107,7 @@ private:
     std::pair<dlib::set<long>::kernel_1a, dlib::set<std::pair<long, long>>::kernel_1a>
     discoverCausalStructure(const std::map<long, SituationInstance>& instanceMap);
 
-    // void calculateBeliefs(std::map<long, SituationInstance>& instanceMap);
+    void calculateBeliefs(std::map<long, SituationInstance>& instanceMap, simtime_t current);
 
 public:
     BNInferenceEngine();

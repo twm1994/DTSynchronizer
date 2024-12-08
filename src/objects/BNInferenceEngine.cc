@@ -17,6 +17,7 @@
 #include <stdexcept>
 #include <cmath>
 #include <algorithm>
+#include <dlib/bayes_utils.h>
 
 using namespace dlib;
 using namespace dlib::bayes_node_utils;
@@ -55,8 +56,7 @@ void BNInferenceEngine::loadModel(SituationGraph sg) {
     }
 }
 
-void BNInferenceEngine::reason(SituationGraph sg,
-        std::map<long, SituationInstance> &instanceMap, simtime_t current) {
+void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstance> &instanceMap, simtime_t current) {
     _sg = sg;  // Update stored graph
     
     // Step 1: Construct CPTs for all nodes
@@ -69,7 +69,7 @@ void BNInferenceEngine::reason(SituationGraph sg,
     auto [nodes, edges] = findCausallyConnectedNodes(instanceMap);
     
     // Step 3: Calculate beliefs and update states
-    // calculateBeliefs(instanceMap);
+    calculateBeliefs(instanceMap, current);
 }
 
 void BNInferenceEngine::addNode(const std::string& nodeName, const SituationNode& node) {
@@ -160,6 +160,68 @@ void BNInferenceEngine::handleMixedRelations(const SituationNode& node, const st
     // Implementation detail: Handle mixed AND/OR relations
     // Placeholder for actual logic
     return;  // No operation for demonstration
+}
+
+void BNInferenceEngine::calculateBeliefs(std::map<long, SituationInstance>& instanceMap, simtime_t current) {
+    // Convert instanceMap to Bayesian Network
+    loadModel(_sg);
+
+    // Construct moral graph and join tree for inference using graph_kernel_1
+    using join_tree_type = dlib::graph_kernel_1<dlib::set<unsigned long>::kernel_1a_c, dlib::set<unsigned long>::kernel_1a_c>;
+    join_tree_type join_tree;
+    dlib::graph_kernel_1<dlib::set<unsigned long>::kernel_1a_c, dlib::set<unsigned long>::kernel_1a_c> moral_graph;
+    dlib::create_moral_graph(*_bn, moral_graph);
+    dlib::create_join_tree(moral_graph, join_tree);
+
+    // Ensure the join tree is valid
+    if (!dlib::is_join_tree(moral_graph, join_tree)) {
+        throw std::runtime_error("Invalid join tree for the Bayesian network");
+    }
+
+    // Create bayesian network join tree for inference
+    dlib::bayesian_network_join_tree bn_join_tree(*_bn, join_tree);
+
+    // Set evidence in the Bayesian Network
+    for (const auto& [id, instance] : instanceMap) {
+        const std::string nodeName = std::to_string(id);
+        if (_nodeMap.find(nodeName) != _nodeMap.end()) {
+            unsigned long nodeIdx = _nodeMap[nodeName];
+            if (instance.state == SituationInstance::TRIGGERED || instance.state == SituationInstance::UNTRIGGERED) {
+                dlib::bayes_node_utils::set_node_value(*_bn, nodeIdx, instance.state == SituationInstance::TRIGGERED ? 1 : 0);
+                dlib::bayes_node_utils::set_node_as_evidence(*_bn, nodeIdx);
+            }
+        }
+    }
+
+    // Perform inference using join tree
+    for (auto& [id, instance] : instanceMap) {
+        const std::string nodeName = std::to_string(id);
+        if (_nodeMap.find(nodeName) != _nodeMap.end()) {
+            unsigned long nodeIdx = _nodeMap[nodeName];
+            if (instance.state == SituationInstance::UNDETERMINED) {
+                auto belief = bn_join_tree.probability(nodeIdx);
+                double belief_value = belief(1);  // Assuming binary node, get probability of being true
+                if (belief_value >= _sg.getNode(id).threshold) {
+                    bool shouldTrigger = false;
+                    for (const auto& evidenceId : _sg.getNode(id).evidences) {
+                        if (instanceMap[evidenceId].counter < instance.counter) {
+                            shouldTrigger = true;
+                            break;
+                        }
+                    }
+                    if (shouldTrigger) {
+                        instance.state = SituationInstance::TRIGGERED;
+                        instance.counter++;
+                        instance.next_start = current;
+                    } else {
+                        instance.state = SituationInstance::UNTRIGGERED;
+                    }
+                } else {
+                    instance.state = SituationInstance::UNTRIGGERED;
+                }
+            }
+        }
+    }
 }
 
 std::pair<std::unique_ptr<dlib::set<long>::kernel_1a>, std::unique_ptr<dlib::set<std::pair<long, long>>::kernel_1a>> 

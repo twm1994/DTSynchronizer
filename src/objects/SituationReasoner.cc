@@ -139,11 +139,11 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
             
             // Log belief update
             if (logger) {
-                logger->logStep("beliefPropagation", current, nodeId,
-                              hypothesisInstance.beliefValue, 1.0,
-                              convertMapToVector(hypothesisInstance.childrenBeliefs),
-                              convertMapToVector(hypothesisInstance.predecessorBeliefs),
-                              hypothesisInstance.state);
+                logger->logInstanceState(hypothesisInstance.id,
+                                      convertMapValueToVector(hypothesisInstance.childrenBeliefs),
+                                      convertMapValueToVector(hypothesisInstance.predecessorBeliefs),
+                                      hypothesisInstance.state,
+                                      current);
             }
         }
     }
@@ -194,7 +194,7 @@ void SituationReasoner::backwardRetrospection(SituationGraph& graph) {
                     
                     if (causeInstance.state == SituationInstance::UNTRIGGERED) {
                         // Determine state based on effect node
-                        SituationInstance::State newState = determineState(causeId, effectId, graph);
+                        SituationInstance::State newState = determineCauseState(causeId, effectId, graph);
                         causeInstance.addStateToBuffer(newState);
                         
                         if (newState == SituationInstance::TRIGGERED) {
@@ -202,12 +202,7 @@ void SituationReasoner::backwardRetrospection(SituationGraph& graph) {
                         }
                         
                         if (logger) {
-                            logger->logStep("backwardRetrospection: state determined", 
-                                          current, causeId,
-                                          causeInstance.beliefValue, 1.0,
-                                          convertMapToVector(causeInstance.childrenBeliefs),
-                                          convertMapToVector(causeInstance.predecessorBeliefs),
-                                          newState);
+                            logger->logCausalReasoning(causeInstance.id, effectId, causeInstance.beliefValue, current);
                         }
                     } else if (causeInstance.state == SituationInstance::TRIGGERED) {
                         triggeredEffects.push_back(causeId);
@@ -219,11 +214,11 @@ void SituationReasoner::backwardRetrospection(SituationGraph& graph) {
                 SituationInstance& instance = instanceMap[effectId];
                 SituationInstance::State lastState = instance.stateBuffer.empty() ? 
                     instance.state : instance.stateBuffer.back();
-                logger->logStep("backwardRetrospection", current, effectId,
-                              instance.beliefValue, 1.0,
-                              convertMapToVector(instance.childrenBeliefs),
-                              convertMapToVector(instance.predecessorBeliefs),
-                              lastState);
+                logger->logInstanceState(instance.id,
+                                      convertMapValueToVector(instance.childrenBeliefs),
+                                      convertMapValueToVector(instance.predecessorBeliefs),
+                                      lastState,
+                                      current);
             }
         }
     }
@@ -277,12 +272,7 @@ void SituationReasoner::downwardRetrospection(SituationGraph& graph) {
                     childInstance.addStateToBuffer(newState);
                     
                     if (logger) {
-                        logger->logStep("downwardRetrospection: state determined", 
-                                      current, childId,
-                                      childInstance.beliefValue, 1.0,
-                                      convertMapToVector(childInstance.childrenBeliefs),
-                                      convertMapToVector(childInstance.predecessorBeliefs),
-                                      newState);
+                        logger->logCausalReasoning(parentId, childInstance.id, childInstance.beliefValue, current);
                     }
                 }
             }
@@ -291,17 +281,17 @@ void SituationReasoner::downwardRetrospection(SituationGraph& graph) {
                 SituationInstance& instance = instanceMap[parentId];
                 SituationInstance::State lastState = instance.stateBuffer.empty() ? 
                     instance.state : instance.stateBuffer.back();
-                logger->logStep("downwardRetrospection", current, parentId,
-                              instance.beliefValue, 1.0,
-                              convertMapToVector(instance.childrenBeliefs),
-                              convertMapToVector(instance.predecessorBeliefs),
-                              lastState);
+                logger->logInstanceState(instance.id,
+                                      convertMapValueToVector(instance.childrenBeliefs),
+                                      convertMapValueToVector(instance.predecessorBeliefs),
+                                      lastState,
+                                      current);
             }
         }
     }
 }
 
-SituationInstance::State SituationReasoner::determineState(long causeId, long effectId, SituationGraph& graph) {
+SituationInstance::State SituationReasoner::determineCauseState(long causeId, long effectId, SituationGraph& graph) {
     // const SituationNode& causeNode = graph.getNode(causeId);
     SituationInstance& effectInstance = instanceMap[effectId];
     
@@ -386,11 +376,10 @@ SituationInstance::State SituationReasoner::determineChildState(long parentId, l
     // Get all V-type child relations
     std::vector<long> vChildren;
     std::vector<SituationRelation::Relation> vRelations;
-    for (long evId : parentNode.evidences) {
-        const SituationRelation* relation = graph.getRelation(parentId, evId);
-        if (relation && relation->type == SituationRelation::V) {
-            vChildren.push_back(evId);
-            vRelations.push_back(relation->relation);
+    for (const auto& [nodeId, relation] : graph.getOutgoingRelations(parentId)) {
+        if (relation.type == SituationRelation::V) {
+            vChildren.push_back(nodeId);
+            vRelations.push_back(relation.relation);
         }
     }
     
@@ -449,26 +438,12 @@ SituationInstance::State SituationReasoner::determineChildState(long parentId, l
     return SituationInstance::UNDETERMINED;
 }
 
-std::vector<double> SituationReasoner::convertMapToVector(const std::map<long, double>& beliefMap) {
+std::vector<double> SituationReasoner::convertMapValueToVector(const std::map<long, double>& beliefMap) {
     std::vector<double> result;
     for (const auto& [id, belief] : beliefMap) {
         result.push_back(belief);
     }
     return result;
-}
-
-void SituationReasoner::logCausalReasoning(const SituationInstance& causeInstance,
-                                         const SituationInstance& effectInstance,
-                                         double beliefValue) {
-    logger->logCausalReasoning(causeInstance.id, effectInstance.id, beliefValue, simTime());
-}
-
-void SituationReasoner::logInstanceState(const SituationInstance& instance) {
-    logger->logInstanceState(instance.id,
-                           convertMapToVector(instance.childrenBeliefs),
-                           convertMapToVector(instance.predecessorBeliefs),
-                           instance.state,
-                           simTime());
 }
 
 SituationInstance::State SituationReasoner::combineStates(std::vector<SituationInstance::State>& stateBuffer) {
@@ -549,7 +524,9 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
     downwardRetrospection(workingGraph);
 
     // Update refinement with Bayesian Network reasoning
-    updateRefinement(workingGraph);
+    BNInferenceEngine engine;
+    engine.loadModel(workingGraph);
+    engine.reason(workingGraph, instanceMap, current);
 
     // Fetch the bottom layer and trigger operational situations
     for (auto bottom : bottoms) {
@@ -559,28 +536,13 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
         }
     }
 
-    // Check and update state
+    // Check and update state, reset transient situations
     checkState(current);
-
-    // Reset transient situations
-    for (auto &si : instanceMap) {
-        if (si.second.next_start + si.second.duration <= current) {
-            si.second.state = SituationInstance::UNTRIGGERED;
-        }
-    }
 
     return tOperational;
 }
 
-void SituationReasoner::updateRefinement(SituationGraph& graph) {
-    // Create a Bayesian Network and perform update refinement
-    BNInferenceEngine engine;
-    engine.loadModel(graph);
-    engine.reason(graph, instanceMap, current);
-}
-
 void SituationReasoner::checkState(simtime_t current) {
-    // reset transient situations
     for (auto si : instanceMap) {
         if (si.second.next_start + si.second.duration <= current) {
             si.second.state = SituationInstance::UNTRIGGERED;

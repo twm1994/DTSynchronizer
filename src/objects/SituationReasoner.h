@@ -39,11 +39,11 @@ private:
      * Determine the state of a cause situation based on a child situation.
      * 
      * @param causeId The ID of the cause situation.
-     * @param childId The ID of the child situation.
+     * @param effectId The ID of the effect situation.
      * @param graph The situation graph.
      * @return The state of the cause situation.
      */
-    SituationInstance::State determineState(long causeId, long childId, SituationGraph& graph);
+    SituationInstance::State determineCauseState(long causeId, long effectId, SituationGraph& graph);
 
     /**
      * Determine the state of a child situation based on a parent situation.
@@ -63,11 +63,13 @@ private:
      */
     SituationInstance::State combineStates(std::vector<SituationInstance::State>& stateBuffer);
 
-    static std::vector<double> convertMapToVector(const std::map<long, double>& beliefMap);
-    void logCausalReasoning(const SituationInstance& causeInstance,
-                           const SituationInstance& effectInstance,
-                           double beliefValue);
-    void logInstanceState(const SituationInstance& instance);
+    /**
+     * Convert a map's values to a vector.
+     * 
+     * @param beliefMap The map containing beliefs indexed by situation IDs.
+     * @return A vector containing only the belief values.
+     */
+    static std::vector<double> convertMapValueToVector(const std::map<long, double>& beliefMap);
 
 protected:
     /**
@@ -113,11 +115,19 @@ public:
      * Constructor.
      */
     SituationReasoner();
-    // return a set of triggered operational situations
+
+    /**
+     * Perform reasoning on triggered situations.
+     * 
+     * @param triggered Set of triggered situation IDs.
+     * @param current The current simulation time.
+     * @return Set of updated operational situations.
+     */
     std::set<long> reason(std::set<long> triggered, simtime_t current);
+
     // reset durable situations if timeout
-    void checkState(simtime_t current);
-    
+    void checkState(simtime_t current);  
+
     /**
      * Initialize the logger.
      * 
@@ -125,6 +135,11 @@ public:
      */
     void initializeLogger(const std::string& logBasePath);
     
+    /**
+     * Get the current simulation time.
+     */
+    simtime_t getCurrentTime() const { return current; }
+
     /**
      * Destructor.
      */

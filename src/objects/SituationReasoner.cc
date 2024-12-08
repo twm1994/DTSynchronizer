@@ -619,5 +619,5 @@ void SituationReasoner::updateRefinement(SituationGraph& graph) {
     // TODO rewrite BNInferenceEngine::reason with methods from aGrUM version 
     BNInferenceEngine engine;
     engine.loadModel(graph);
-    //engine.reason(graph, instanceMap, current);
+    engine.reason(graph, instanceMap, current);
 }

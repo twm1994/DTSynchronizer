@@ -1,4 +1,4 @@
-CXXFLAGS += -std=c++20
+# CXXFLAGS += -std=c++20
 
 # aGrUM library paths
 # INCLUDE_PATH += -I/usr/local/include

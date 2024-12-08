@@ -77,8 +77,13 @@ void BNInferenceEngine::addNode(const std::string& nodeName, const SituationNode
     unsigned long nodeIndex = _bn->add_node();
     _nodeMap[nodeName] = nodeIndex;
     
-    // Set node name
-    // dlib::bayes_node_utils::set_node_name(*_bn, nodeIndex, nodeName);
+    // Initialize node with binary values (0 = false, 1 = true)
+    dlib::bayes_node_utils::set_node_num_values(*_bn, nodeIndex, 2);
+    
+    // Set initial probabilities for root nodes
+    assignment empty_assignment;
+    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIndex, 0, empty_assignment, 0.5);  // P(node=false)
+    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIndex, 1, empty_assignment, 0.5);  // P(node=true)
 }
 
 void BNInferenceEngine::addEdge(const std::string& parentName, const std::string& childName, double weight) {
@@ -89,10 +94,15 @@ void BNInferenceEngine::addEdge(const std::string& parentName, const std::string
         // Add edge to Bayesian network
         _bn->add_edge(parentIndex, childIndex);
         
-        // Set edge weight (if applicable)
-        // Note: dlib does not directly support edge weights, so this is a placeholder
-        // for potential custom logic
-        // dlib::bayes_node_utils::set_edge_weight(*_bn, parentIndex, childIndex, weight);
+        // Initialize CPT for the child node
+        assignment parent_assignment;
+        parent_assignment.add(parentIndex, 0);  // parent = false
+        dlib::bayes_node_utils::set_node_probability(*_bn, childIndex, 0, parent_assignment, 1.0 - weight);
+        dlib::bayes_node_utils::set_node_probability(*_bn, childIndex, 1, parent_assignment, weight);
+        
+        parent_assignment[parentIndex] = 1;  // parent = true
+        dlib::bayes_node_utils::set_node_probability(*_bn, childIndex, 0, parent_assignment, 1.0 - weight);
+        dlib::bayes_node_utils::set_node_probability(*_bn, childIndex, 1, parent_assignment, weight);
     }
 }
 
@@ -166,20 +176,37 @@ void BNInferenceEngine::calculateBeliefs(std::map<long, SituationInstance>& inst
     // Convert instanceMap to Bayesian Network
     loadModel(_sg);
 
-    // Construct moral graph and join tree for inference using graph_kernel_1
-    using join_tree_type = dlib::graph_kernel_1<dlib::set<unsigned long>::kernel_1a_c, dlib::set<unsigned long>::kernel_1a_c>;
-    join_tree_type join_tree;
-    dlib::graph_kernel_1<dlib::set<unsigned long>::kernel_1a_c, dlib::set<unsigned long>::kernel_1a_c> moral_graph;
-    dlib::create_moral_graph(*_bn, moral_graph);
-    dlib::create_join_tree(moral_graph, join_tree);
-
-    // Ensure the join tree is valid
-    if (!dlib::is_join_tree(moral_graph, join_tree)) {
-        throw std::runtime_error("Invalid join tree for the Bayesian network");
+    // First verify that the Bayesian network is valid
+    if (_bn->number_of_nodes() == 0) {
+        throw std::runtime_error("Empty Bayesian network");
     }
 
+    // Verify all nodes have valid CPTs
+    for (unsigned long i = 0; i < _bn->number_of_nodes(); ++i) {
+        if (!dlib::bayes_node_utils::node_cpt_filled_out(*_bn, i)) {
+            // Fill with default probabilities if CPT is not complete
+            assignment a = dlib::bayes_node_utils::node_first_parent_assignment(*_bn, i);
+            do {
+                for (unsigned long value = 0; value < 2; ++value) {
+                    if (!_bn->node(i).data.table().has_entry_for(value, a)) {
+                        dlib::bayes_node_utils::set_node_probability(*_bn, i, value, a, 0.5);
+                    }
+                }
+            } while(dlib::bayes_node_utils::node_next_parent_assignment(*_bn, i, a));
+        }
+    }
+
+    // Create join tree for inference
+    typedef dlib::set<unsigned long>::compare_1b_c set_type;
+    typedef dlib::graph<set_type, set_type>::kernel_1a_c join_tree_type;
+    join_tree_type join_tree;
+
+    // Create moral graph and join tree directly
+    dlib::create_moral_graph(*_bn, join_tree);
+    dlib::create_join_tree(join_tree, join_tree);
+
     // Create bayesian network join tree for inference
-    dlib::bayesian_network_join_tree bn_join_tree(*_bn, join_tree);
+    dlib::bayesian_network_join_tree solution(*_bn, join_tree);
 
     // Set evidence in the Bayesian Network
     for (const auto& [id, instance] : instanceMap) {
@@ -199,7 +226,7 @@ void BNInferenceEngine::calculateBeliefs(std::map<long, SituationInstance>& inst
         if (_nodeMap.find(nodeName) != _nodeMap.end()) {
             unsigned long nodeIdx = _nodeMap[nodeName];
             if (instance.state == SituationInstance::UNDETERMINED) {
-                auto belief = bn_join_tree.probability(nodeIdx);
+                auto belief = solution.probability(nodeIdx);
                 double belief_value = belief(1);  // Assuming binary node, get probability of being true
                 if (belief_value >= _sg.getNode(id).threshold) {
                     bool shouldTrigger = false;

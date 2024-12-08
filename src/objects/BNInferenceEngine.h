@@ -57,8 +57,8 @@ namespace dlib {
 class BNInferenceEngine {
 private:
     typedef dlib::set<unsigned long>::kernel_1a set_type;
-    typedef dlib::directed_graph<bayes_node>::kernel_1a bn_type;
-    typedef dlib::graph_kernel_1<set_type, set_type> join_tree_type;
+    typedef dlib::directed_graph<bayes_node>::kernel_1a_c bn_type;
+    typedef dlib::graph<set_type, set_type>::kernel_1a_c join_tree_type;
     
     SituationGraph _sg;
     std::unique_ptr<bn_type> _bn;
@@ -75,9 +75,6 @@ private:
     std::vector<unsigned long> getChildren(unsigned long nodeIdx) const;
     double normalizeWeight(double weight) const;
     bool areNodesConnected(unsigned long node1, unsigned long node2) const;
-    void handleMixedRelations(const SituationNode& node,
-                            const std::vector<long>& andNodes,
-                            const std::vector<long>& orNodes);
     double calculateAndProbability(const SituationNode& node,
                                  const std::vector<long>& nodes);
     double calculateOrProbability(const SituationNode& node,

@@ -331,6 +331,59 @@ void SituationGraph::print() {
     }
 }
 
+SituationGraph SituationGraph::createSubgraph(const dlib::set<long>::kernel_1a& nodeSet,
+                                            const dlib::set<std::pair<long, long>>::kernel_1a& edgeSet) const {
+    SituationGraph subgraph;
+    
+    // Copy nodes to subgraph
+    nodeSet.reset();
+    while (nodeSet.move_next()) {
+        long nodeId = nodeSet.element();
+        subgraph.situationMap[nodeId] = getNode(nodeId);
+    }
+    
+    // Copy relations for edges in the subgraph
+    edgeSet.reset();
+    while (edgeSet.move_next()) {
+        auto edge = edgeSet.element();
+        const SituationRelation* relation = getRelation(edge.first, edge.second);
+        if (relation) {
+            subgraph.relationMap[edge] = *relation;
+        }
+    }
+    
+    // Build layers for subgraph (maintaining same layer structure as original)
+    subgraph.layers.clear();
+    for (int i = 0; i < modelHeight(); i++) {
+        DirectedGraph origLayer = getLayer(i);
+        DirectedGraph layer;
+        
+        // Add vertices that exist in the subgraph
+        for (const auto& nodeId : origLayer.getVertices()) {
+            if (nodeSet.is_member(nodeId)) {
+                layer.add_vertex(nodeId);
+            }
+        }
+        
+        // Add edges that exist in the subgraph
+        edgeSet.reset();
+        while (edgeSet.move_next()) {
+            auto edge = edgeSet.element();
+            const auto& vertices = origLayer.getVertices();
+            if (std::find(vertices.begin(), vertices.end(), edge.first) != vertices.end() &&
+                std::find(vertices.begin(), vertices.end(), edge.second) != vertices.end()) {
+                layer.add_vertex(edge.first);
+                layer.add_vertex(edge.second);
+                layer.add_edge(edge.first, edge.second);
+            }
+        }
+        
+        subgraph.layers.push_back(layer);
+    }
+    
+    return subgraph;
+}
+
 SituationGraph::~SituationGraph() {
     // TODO why cannot release pointer here?
 //    delete ri;

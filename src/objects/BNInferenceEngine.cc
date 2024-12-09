@@ -67,129 +67,51 @@ void BNInferenceEngine::loadModel(SituationGraph sg) {
 void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstance> &instanceMap, simtime_t current, std::shared_ptr<ReasonerLogger> logger) {
     _sg = sg;  // Update stored graph
     
-    // Step 1: Construct CPTs for all nodes
-    std::map<long, std::map<assignment, std::pair<double, double>>> cptMap;
-    for (const auto& [id, instance] : instanceMap) {
-        const SituationNode& node = sg.getNode(id);
-        constructCPT(node, instanceMap);
-        
-        // Store CPT for this node
-        const std::string nodeName = std::to_string(id);
-        if (_nodeMap.find(nodeName) != _nodeMap.end()) {
-            unsigned long nodeIdx = _nodeMap[nodeName];
-            std::map<assignment, std::pair<double, double>> nodeCPT;
-            
-            // Store all probability assignments for this node
-            assignment a = dlib::bayes_node_utils::node_first_parent_assignment(*_bn, nodeIdx);
-            do {
-                double p0 = dlib::bayes_node_utils::node_probability(*_bn, nodeIdx, 0, a);
-                double p1 = dlib::bayes_node_utils::node_probability(*_bn, nodeIdx, 1, a);
-                nodeCPT[a] = std::make_pair(p0, p1);
-            } while(dlib::bayes_node_utils::node_next_parent_assignment(*_bn, nodeIdx, a));
-            
-            cptMap[id] = nodeCPT;
-        }
-    }
-    
-    // Step 2: Discover causal structure and create subgraph
+    // Step 1: Discover causal structure and create subgraph
     auto [nodeSet, edgeSet] = findCausallyConnectedNodes(instanceMap);
+    SituationGraph causalGraph = sg.createSubgraph(*nodeSet, *edgeSet);
     
-    // Create new graph with only causally connected nodes
-    SituationGraph causalGraph;
+    // Create instance map for causal subgraph
     std::map<long, SituationInstance> causalInstanceMap;
-    
-    // Copy nodes to causal graph
     nodeSet->reset();
     while (nodeSet->move_next()) {
         long nodeId = nodeSet->element();
-        const SituationNode& origNode = sg.getNode(nodeId);
-        causalGraph.situationMap[nodeId] = origNode;
         causalInstanceMap[nodeId] = instanceMap[nodeId];
     }
     
-    // Build layers for causal graph (assuming same layer structure as original)
-    causalGraph.layers.clear();
-    for (int i = 0; i < sg.modelHeight(); i++) {
-        DirectedGraph origLayer = sg.getLayer(i);
-        DirectedGraph layer;  // Declare layer here to be used in the entire function
-        // Add vertices that exist in the causal subgraph
-        for (const auto& nodeId : origLayer.getVertices()) {
-            if (nodeSet->is_member(nodeId)) {
-                layer.add_vertex(nodeId);
-            }
-        }
-        
-        // Add edges that exist in the causal subgraph
-        edgeSet->reset();
-        while (edgeSet->move_next()) {
-            auto edge = edgeSet->element();
-            const auto& vertices = origLayer.getVertices();
-            if (std::find(vertices.begin(), vertices.end(), edge.first) != vertices.end() &&
-                std::find(vertices.begin(), vertices.end(), edge.second) != vertices.end()) {
-                layer.add_vertex(edge.first);
-                layer.add_vertex(edge.second);
-                layer.add_edge(edge.first, edge.second);
-            }
-        }
-        
-        causalGraph.layers.push_back(layer);
-    }
-    
-    // Create new Bayesian network for causal subgraph
+    // Step 2: Create new Bayesian network for causal subgraph
     _bn = std::make_unique<bn_type>();
     _nodeMap.clear();
     _joinTree.reset();
     
-    // Add nodes and restore their CPTs
-    for (const auto& [id, instance] : causalInstanceMap) {
-        addNode(std::to_string(id), causalGraph.getNode(id));
-        
-        // Restore CPT from stored map
-        const std::string nodeName = std::to_string(id);
-        if (_nodeMap.find(nodeName) != _nodeMap.end() && cptMap.find(id) != cptMap.end()) {
-            unsigned long nodeIdx = _nodeMap[nodeName];
-            for (const auto& [a, probs] : cptMap[id]) {
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, probs.first);
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, probs.second);
-            }
-        }
+    // Add nodes to Bayesian network
+    for (const auto& [id, node] : causalGraph.situationMap) {
+        addNode(std::to_string(id), node);
     }
     
-    // Add edges for causal subgraph
-    edgeSet->reset();
-    while (edgeSet->move_next()) {
-        auto edge = edgeSet->element();
-        const SituationRelation* relation = causalGraph.getRelation(edge.first, edge.second);
-        if (relation) {
-            addEdge(std::to_string(edge.first), std::to_string(edge.second), relation->weight);
-        }
+    // Add edges to Bayesian network
+    for (const auto& [edge, relation] : causalGraph.relationMap) {
+        addEdge(std::to_string(edge.first), std::to_string(edge.second), relation.weight);
     }
     
-    // Step 3: Calculate beliefs and update states for causal subgraph
+    // Step 3: Construct CPTs for nodes in causal subgraph
+    for (const auto& [id, node] : causalGraph.situationMap) {
+        constructCPT(node, causalInstanceMap);
+    }
+    
+    // Step 4: Calculate beliefs and update states
     if (logger) {
-        logger->logStep("BN Belief Calculation Start", 
-                       current, 
-                       -1, 
-                       0.0, 
-                       {}, 
-                       {}, 
+        logger->logStep("BN Belief Calculation Start", current, -1, 0.0, {}, {}, 
                        SituationInstance::UNDETERMINED);
     }
 
     // Create join tree for inference
     _joinTree = std::make_unique<join_tree_type>();
-    
-    // Create moral graph first, then create join tree
     create_moral_graph(*_bn, *_joinTree);
     create_join_tree(*_joinTree, *_joinTree);
     
     if (logger) {
-        logger->logStep("BN Join Tree Created", 
-                       current, 
-                       -1, 
-                       0.0, 
-                       {}, 
-                       {}, 
+        logger->logStep("BN Join Tree Created", current, -1, 0.0, {}, {}, 
                        SituationInstance::UNDETERMINED);
     }
     
@@ -200,37 +122,25 @@ void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstan
         
         unsigned long nodeIdx = _nodeMap[nodeName];
         if (instance.state == SituationInstance::TRIGGERED) {
-            set_node_value(*_bn, nodeIdx, 1);  // Set to true for triggered
+            set_node_value(*_bn, nodeIdx, 1);
             if (logger) {
-                logger->logStep("BN Set Evidence", 
-                              current, 
-                              id, 
-                              1.0,  // Evidence value for triggered 
-                              {}, 
-                              {}, 
-                              instance.state);
+                logger->logStep("BN Set Evidence", current, id, 1.0, {}, {}, instance.state);
             }
         } else if (instance.state == SituationInstance::UNTRIGGERED) {
-            set_node_value(*_bn, nodeIdx, 0);  // Set to false for untriggered
+            set_node_value(*_bn, nodeIdx, 0);
             if (logger) {
-                logger->logStep("BN Set Evidence", 
-                              current, 
-                              id, 
-                              0.0,  // Evidence value for untriggered
-                              {}, 
-                              {}, 
-                              instance.state);
+                logger->logStep("BN Set Evidence", current, id, 0.0, {}, {}, instance.state);
             }
         }
     }
     
-    // Perform belief propagation using join tree algorithm
+    // Perform belief propagation
     bayesian_network_join_tree solution(*_bn, *_joinTree);
     
-    // Update beliefs and states for each node
+    // Update beliefs and states
     calculateBeliefs(causalInstanceMap, current);
     
-    // Step 4: Update original instanceMap with new beliefs and states
+    // Step 5: Update original instanceMap with new beliefs and states
     for (const auto& [id, instance] : causalInstanceMap) {
         instanceMap[id].beliefValue = instance.beliefValue;
         instanceMap[id].counter = instance.counter;

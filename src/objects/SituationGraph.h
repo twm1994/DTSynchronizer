@@ -24,6 +24,8 @@
 #include <boost/tuple/tuple.hpp>
 #include <boost/tuple/tuple_comparison.hpp>
 #include <boost/tuple/tuple_io.hpp>
+// Dlib includes
+#include <dlib/set.h>
 
 // Project includes
 #include "DirectedGraph.h"
@@ -58,10 +60,9 @@ public:
     SituationNode getNode(long id) const;
     const SituationRelation* getRelation(long src, long dest) const;
     const std::map<long, SituationRelation>& getOutgoingRelations(long nodeId) const;
-    // void loadModel(const std::string &filename, SituationEvolution* arrangeer);
-    // DirectedGraph getLayer (int index);
-    // int modelHeight();
-    // SituationNode getNode(long id);
+    // Create a subgraph containing only the specified nodes and edges
+    SituationGraph createSubgraph(const dlib::set<long>::kernel_1a& nodeSet,
+                                 const dlib::set<std::pair<long, long>>::kernel_1a& edgeSet) const;
     int numOfNodes() const;
     void print();
     virtual ~SituationGraph();

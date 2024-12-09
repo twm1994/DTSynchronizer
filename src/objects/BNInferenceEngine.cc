@@ -28,6 +28,7 @@ BNInferenceEngine::BNInferenceEngine() : _bn(std::make_unique<bn_type>()), _join
 BNInferenceEngine::~BNInferenceEngine() = default;
 
 void BNInferenceEngine::loadModel(SituationGraph sg) {
+    std::cout << "\nLoading Bayesian Network Model..." << std::endl;
     _sg = sg;  // Store the graph
     
     // Create new network
@@ -36,25 +37,31 @@ void BNInferenceEngine::loadModel(SituationGraph sg) {
     _joinTree.reset();
     
     // Step 1: Add nodes for each situation
+    std::cout << "Adding nodes to Bayesian Network:" << std::endl;
     for (int layer = 0; layer < sg.modelHeight(); layer++) {
         DirectedGraph currentLayer = sg.getLayer(layer);
+        std::cout << "Layer " << layer << ":" << std::endl;
         for (const auto& nodeId : currentLayer.getVertices()) {
             const SituationNode& node = sg.getNode(nodeId);
+            std::cout << "  Adding node ID: " << node.id << std::endl;
             addNode(std::to_string(node.id), node);
         }
     }
     
     // Step 2: Add edges based on relations
+    std::cout << "\nAdding edges to Bayesian Network:" << std::endl;
     for (int layer = 0; layer < sg.modelHeight(); layer++) {
         DirectedGraph currentLayer = sg.getLayer(layer);
         for (const auto& nodeId : currentLayer.getVertices()) {
             const SituationNode& node = sg.getNode(nodeId);
             // Add edges for both vertical and horizontal relations
             for (const auto& [childId, relation] : sg.getOutgoingRelations(node.id)) {
+                std::cout << "  Adding edge: " << node.id << " -> " << childId << " (weight: " << relation.weight << ")" << std::endl;
                 addEdge(std::to_string(node.id), std::to_string(childId), relation.weight);
             }
         }
     }
+    std::cout << "Bayesian Network Model loading complete.\n" << std::endl;
 }
 
 void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstance> &instanceMap, simtime_t current, std::shared_ptr<ReasonerLogger> logger) {
@@ -233,36 +240,48 @@ void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstan
 }
 
 void BNInferenceEngine::addNode(const std::string& nodeName, const SituationNode& node) {
-    // Add node to Bayesian network
-    unsigned long nodeIndex = _bn->add_node();
-    _nodeMap[nodeName] = nodeIndex;
-    
-    // Initialize node with binary values (0 = false, 1 = true)
-    dlib::bayes_node_utils::set_node_num_values(*_bn, nodeIndex, 2);
-    
-    // Set initial probabilities for root nodes
-    assignment empty_assignment;
-    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIndex, 0, empty_assignment, 0.5);  // P(node=false)
-    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIndex, 1, empty_assignment, 0.5);  // P(node=true)
+    try {
+        // Add node to Bayesian network
+        unsigned long nodeIndex = _bn->add_node();
+        _nodeMap[nodeName] = nodeIndex;
+        
+        // Initialize node with binary values (0 = false, 1 = true)
+        dlib::bayes_node_utils::set_node_num_values(*_bn, nodeIndex, 2);
+        
+        // Set initial probabilities for root nodes
+        assignment empty_assignment;
+        dlib::bayes_node_utils::set_node_probability(*_bn, nodeIndex, 0, empty_assignment, 0.5);  // P(node=false)
+        dlib::bayes_node_utils::set_node_probability(*_bn, nodeIndex, 1, empty_assignment, 0.5);  // P(node=true)
+        
+        std::cout << "    Successfully added node " << nodeName << " at index " << nodeIndex << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Error adding node " << nodeName << ": " << e.what() << std::endl;
+        throw;
+    }
 }
 
 void BNInferenceEngine::addEdge(const std::string& parentName, const std::string& childName, double weight) {
-    if (_nodeMap.find(parentName) != _nodeMap.end() && _nodeMap.find(childName) != _nodeMap.end()) {
+    try {
+        if (_nodeMap.find(parentName) == _nodeMap.end()) {
+            std::cerr << "Error: Parent node " << parentName << " not found in node map" << std::endl;
+            throw std::runtime_error("Parent node not found");
+        }
+        if (_nodeMap.find(childName) == _nodeMap.end()) {
+            std::cerr << "Error: Child node " << childName << " not found in node map" << std::endl;
+            throw std::runtime_error("Child node not found");
+        }
+        
         unsigned long parentIndex = _nodeMap[parentName];
         unsigned long childIndex = _nodeMap[childName];
         
-        // Add edge to Bayesian network
+        // Add the edge to the network
         _bn->add_edge(parentIndex, childIndex);
         
-        // Initialize CPT for the child node
-        assignment parent_assignment;
-        parent_assignment.add(parentIndex, 0);  // parent = false
-        dlib::bayes_node_utils::set_node_probability(*_bn, childIndex, 0, parent_assignment, 1.0 - weight);
-        dlib::bayes_node_utils::set_node_probability(*_bn, childIndex, 1, parent_assignment, weight);
-        
-        parent_assignment[parentIndex] = 1;  // parent = true
-        dlib::bayes_node_utils::set_node_probability(*_bn, childIndex, 0, parent_assignment, 1.0 - weight);
-        dlib::bayes_node_utils::set_node_probability(*_bn, childIndex, 1, parent_assignment, weight);
+        std::cout << "    Successfully added edge from " << parentName << " (index " << parentIndex 
+                 << ") to " << childName << " (index " << childIndex << ")" << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Error adding edge from " << parentName << " to " << childName << ": " << e.what() << std::endl;
+        throw;
     }
 }
 

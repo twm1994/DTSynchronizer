@@ -2,10 +2,46 @@
 	"layers": [
 		[
 			{
+				"ID": 301,
+				"Predecessors": null,
+				"Children": [{"ID": 201, "Weight-y": 0.98, "Relation": 2},{"ID": 202, "Weight-y": 0.98, "Relation": 2}],
+				"Duration": 3000,
+				"Cycle": 0,
+				"type": 0
+			}
+		],
+		[
+			{
+				"ID": 201,
+				"Predecessors": null,
+				"Children": [{"ID": 101, "Weight-y": 0.98, "Relation": 1},{"ID": 102, "Weight-y": 0.98, "Relation": 1}],
+				"Duration": 3000,
+				"Cycle": 0,
+				"type": 0
+			},
+			{
+				"ID": 202,
+				"Predecessors": [{"ID": 201, "Weight-x": 0.98, "Relation": 0}],
+				"Children": [{"ID": 103, "Weight-y": 0.98, "Relation": 1},{"ID": 104, "Weight-y": 0.98, "Relation": 1}],
+				"Duration": 1000,
+				"Cycle": 1000,
+				"type": 1
+			},
+			{
+				"ID": 203,
+				"Predecessors": [{"ID": 202, "Weight-x": 0.98, "Relation": 0}],
+				"Children": [{"ID": 105, "Weight-y": 0.98, "Relation": 1},{"ID": 106, "Weight-y": 0.98, "Relation": 1}],
+				"Duration": 1000,
+				"Cycle": 1000,
+				"type": 0
+			}
+		],
+		[
+			{
 				"ID": 101,
 				"Predecessors": null,
 				"Children": null,
-				"Duration": 3000,
+				"Duration": 0,
 				"Cycle": 1000,
 				"type": 0
 			},
@@ -13,56 +49,40 @@
 				"ID": 102,
 				"Predecessors": null,
 				"Children": null,
-				"Duration": 3000,
-				"Cycle": 1000,
+				"Duration": 0,
+				"Cycle": 2000,
 				"type": 1
 			},
 			{
 				"ID": 103,
 				"Predecessors": null,
 				"Children": null,
-				"Duration": 1000,
+				"Duration": 0,
 				"Cycle": 1500,
-				"type": 1
+				"type": 0
 			},
 			{
 				"ID": 104,
 				"Predecessors": null,
 				"Children": null,
-				"Duration": 1000,
-				"Cycle": 4500,
-				"type": 0
+				"Duration": 0,
+				"Cycle": 2500,
+				"type": 1
 			},
 			{
 				"ID": 105,
-				"Predecessors": null,
+				"Predecessors": [{"ID": 104, "Weight-x": 0.98, "Relation": 0}],
 				"Children": null,
-				"Duration": 1000,
-				"Cycle": 4000,
-				"type": 0
-			},			
-			{
-				"ID": 106,
-				"Predecessors": [{"ID": 101, "Weight-x": 0.5, "Relation": 1}, {"ID": 102, "Weight-x": 0.5, "Relation": 1}],
-				"Children": null,
-				"Duration": 1000,
+				"Duration": 0,
 				"Cycle": 1000,
 				"type": 0
 			},
 			{
-				"ID": 107,
-				"Predecessors": [{"ID": 103, "Weight-x": 0.5, "Relation": 1}, {"ID": 106, "Weight-x": 0.5, "Relation": 1}],
+				"ID": 106,
+				"Predecessors": [{"ID": 104, "Weight-x": 0.98, "Relation": 1}, {"ID": 105, "Weight-x": 0.98, "Relation": 1}],
 				"Children": null,
-				"Duration": 1000,
-				"Cycle": 2500,
-				"type": 0
-			},
-			{
-				"ID": 108,
-				"Predecessors": [{"ID": 104, "Weight-x": 0.5, "Relation": 1}, {"ID": 105, "Weight-x": 0.5, "Relation": 1}, {"ID": 106, "Weight-x": 0.5, "Relation": 1}],
-				"Children": null,
-				"Duration": 1000,
-				"Cycle": 5000,
+				"Duration": 0,
+				"Cycle": 1500,
 				"type": 0
 			}
 		] 

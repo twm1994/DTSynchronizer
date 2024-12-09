@@ -17,7 +17,6 @@ public:
         simtime_t timestamp;         // Current simulation time
         long situationId;           // ID of the situation
         double beliefValue;         // Current belief value
-        double temporalWeight;      // Temporal weight used
         std::vector<double> childrenBeliefs;    // Beliefs from children
         std::vector<double> predecessorBeliefs; // Beliefs from predecessors
         SituationInstance::State state;  // Current state
@@ -39,7 +38,6 @@ public:
                 simtime_t timestamp,
                 long situationId,
                 double beliefValue,
-                double temporalWeight,
                 const std::vector<double>& childrenBeliefs,
                 const std::vector<double>& predecessorBeliefs,
                 SituationInstance::State state);

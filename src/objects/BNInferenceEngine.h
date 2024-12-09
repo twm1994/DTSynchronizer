@@ -8,6 +8,7 @@
 #include <set>
 #include "SituationGraph.h"
 #include "SituationInstance.h"
+#include "../utils/ReasonerLogger.h"
 #include <dlib/directed_graph.h>
 #include <dlib/graph_utils.h>
 #include <dlib/bayes_utils.h>
@@ -106,6 +107,19 @@ private:
 
     void calculateBeliefs(std::map<long, SituationInstance>& instanceMap, simtime_t current);
 
+    // Helper functions for d-separation
+    bool isCollider(unsigned long node, const std::vector<unsigned long>& path) const;
+    bool isActive(unsigned long node, const std::set<unsigned long>& conditioningSet, 
+                 const std::vector<unsigned long>& path,
+                 std::set<unsigned long>& visited) const;
+    bool hasActivePathDFS(unsigned long start, unsigned long end,
+                        const std::set<unsigned long>& conditioningSet,
+                        std::vector<unsigned long>& currentPath,
+                        std::set<unsigned long>& visited) const;
+    bool isDConnected(unsigned long start, unsigned long end,
+                     const std::set<unsigned long>& conditioningSet) const;
+    std::vector<unsigned long> getDescendants(unsigned long node) const;
+
 public:
     BNInferenceEngine();
     virtual ~BNInferenceEngine();
@@ -113,7 +127,8 @@ public:
     void loadModel(SituationGraph sg);
     void reason(SituationGraph sg,
                std::map<long, SituationInstance> &instanceMap,
-               simtime_t current);
+               simtime_t current,
+               std::shared_ptr<ReasonerLogger> logger = nullptr);
 };
 
 #endif /* BNINFENGINE_H_ */

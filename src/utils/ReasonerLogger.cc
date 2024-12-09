@@ -33,12 +33,11 @@ void ReasonerLogger::logStep(const std::string& phase,
                            simtime_t timestamp,
                            long situationId,
                            double beliefValue,
-                           double temporalWeight,
                            const std::vector<double>& childrenBeliefs,
                            const std::vector<double>& predecessorBeliefs,
                            SituationInstance::State state) {
     ReasoningStep step{
-        phase, timestamp, situationId, beliefValue, temporalWeight,
+        phase, timestamp, situationId, beliefValue,
         childrenBeliefs, predecessorBeliefs, state
     };
     
@@ -197,7 +196,7 @@ void ReasonerLogger::logInstanceState(long instanceId,
 }
 
 void ReasonerLogger::writeCSVHeader() {
-    csvFile << "Timestamp,Phase,SituationID,BeliefValue,TemporalWeight,State,"
+    csvFile << "Timestamp,Phase,SituationID,BeliefValue,State,"
             << "ChildrenBeliefs,PredecessorBeliefs" << std::endl;
     headerWritten = true;
 }
@@ -207,7 +206,6 @@ void ReasonerLogger::writeCSVStep(const ReasoningStep& step) {
             << step.phase << ","
             << step.situationId << ","
             << std::fixed << std::setprecision(6) << step.beliefValue << ","
-            << step.temporalWeight << ","
             << (step.state == SituationInstance::TRIGGERED ? "TRIGGERED" : "UNTRIGGERED") << ",\"";
     
     // Write children beliefs
@@ -231,7 +229,6 @@ boost::property_tree::ptree ReasonerLogger::stepToPtree(const ReasoningStep& ste
     pt.put("phase", step.phase);
     pt.put("situationId", step.situationId);
     pt.put("beliefValue", step.beliefValue);
-    pt.put("temporalWeight", step.temporalWeight);
     pt.put("state", (step.state == SituationInstance::TRIGGERED ? "TRIGGERED" : "UNTRIGGERED"));
     
     // Add children beliefs array

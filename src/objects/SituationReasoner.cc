@@ -24,7 +24,7 @@ SituationReasoner::~SituationReasoner() {
 }
 
 void SituationReasoner::initializeLogger(const std::string& logBasePath) {
-    logger = std::make_unique<ReasonerLogger>(logBasePath);
+    logger = std::make_shared<ReasonerLogger>(logBasePath);
     
     // Initialize instances for all nodes in the graph starting from bottom layer
     for (int layer = sg.modelHeight() - 1; layer >= 0; layer--) {
@@ -47,6 +47,16 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
         DirectedGraph currentLayer = graph.getLayer(layer);
         std::vector<long> nodes = currentLayer.topo_sort();
         
+        if (logger) {
+            logger->logStep("Processing Layer" + std::to_string(layer),
+                          current, 
+                          -1, 
+                          0.0, 
+                          {}, 
+                          {}, 
+                          SituationInstance::UNDETERMINED);
+        }
+        
         // Process each node in the current layer as a hypothesis
         for (long nodeId : nodes) {
             const SituationNode& hypothesisNode = graph.getNode(nodeId);
@@ -65,6 +75,15 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
             // Set belief to expert-defined measure
             if (evidenceNodes.empty()) {
                 hypothesisInstance.beliefValue = 0.8;  // Expert-defined measure
+                if (logger) {
+                    logger->logStep("Base Hypothesis", 
+                                  current, 
+                                  nodeId, 
+                                  hypothesisInstance.beliefValue, 
+                                  convertMapValueToVector(hypothesisInstance.childrenBeliefs),
+                                  convertMapValueToVector(hypothesisInstance.predecessorBeliefs),
+                                  hypothesisInstance.state);
+                }
             }
             // Case 2: Single evidence with SOLE relation
             // Belief = evidence_belief * relation_weight
@@ -483,6 +502,10 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
     // Create a working copy of the situation graph
     SituationGraph workingGraph = sg;
 
+    if (logger) {
+        logger->logStep("Reasoning Start", current, -1, 0.0, {}, {}, SituationInstance::UNDETERMINED);
+    }
+
     int numOfLayers = workingGraph.modelHeight();
     // trigger bottom layer situations
     DirectedGraph g = workingGraph.getLayer(numOfLayers - 1);
@@ -494,6 +517,16 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
             instance.state = SituationInstance::TRIGGERED;
             instance.counter++;
             instance.next_start = current;
+            
+            if (logger) {
+                logger->logStep("Bottom Layer Trigger", 
+                              current, 
+                              bottom, 
+                              instance.beliefValue, 
+                              convertMapValueToVector(instance.childrenBeliefs),
+                              convertMapValueToVector(instance.predecessorBeliefs),
+                              instance.state);
+            }
         }
     }
     // for (int i = workingGraph.modelHeight() - 1; i > 0; i--) {
@@ -519,15 +552,28 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
     // }
 
     // Run belief propagation and retrospection
+    if (logger) {
+        logger->logStep("Start Belief Propagation", current, -1, 0.0, {}, {}, SituationInstance::UNDETERMINED);
+    }
     beliefPropagation(workingGraph);
+    
+    if (logger) {
+        logger->logStep("Start Backward Retrospection", current, -1, 0.0, {}, {}, SituationInstance::UNDETERMINED);
+    }
     backwardRetrospection(workingGraph);
+    
+    if (logger) {
+        logger->logStep("Start Downward Retrospection", current, -1, 0.0, {}, {}, SituationInstance::UNDETERMINED);
+    }
     downwardRetrospection(workingGraph);
 
     // Update refinement with Bayesian Network reasoning
+    if (logger) {
+        logger->logStep("Start Bayesian Network Reasoning", current, -1, 0.0, {}, {}, SituationInstance::UNDETERMINED);
+    }
     BNInferenceEngine engine;
     engine.loadModel(workingGraph);
-    engine.reason(workingGraph, instanceMap, current);
-
+    engine.reason(workingGraph, instanceMap, current, logger);
     // Fetch the bottom layer and trigger operational situations
     for (auto bottom : bottoms) {
         SituationInstance& instance = instanceMap[bottom];

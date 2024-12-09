@@ -18,6 +18,7 @@
 #include <cmath>
 #include <algorithm>
 #include <dlib/bayes_utils.h>
+#include "SituationReasoner.h"
 
 using namespace dlib;
 using namespace dlib::bayes_node_utils;
@@ -56,7 +57,7 @@ void BNInferenceEngine::loadModel(SituationGraph sg) {
     }
 }
 
-void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstance> &instanceMap, simtime_t current) {
+void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstance> &instanceMap, simtime_t current, std::shared_ptr<ReasonerLogger> logger) {
     _sg = sg;  // Update stored graph
     
     // Step 1: Construct CPTs for all nodes
@@ -158,6 +159,68 @@ void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstan
     }
     
     // Step 3: Calculate beliefs and update states for causal subgraph
+    if (logger) {
+        logger->logStep("BN Belief Calculation Start", 
+                       current, 
+                       -1, 
+                       0.0, 
+                       {}, 
+                       {}, 
+                       SituationInstance::UNDETERMINED);
+    }
+
+    // Create join tree for inference
+    _joinTree = std::make_unique<join_tree_type>();
+    
+    // Create moral graph first, then create join tree
+    create_moral_graph(*_bn, *_joinTree);
+    create_join_tree(*_joinTree, *_joinTree);
+    
+    if (logger) {
+        logger->logStep("BN Join Tree Created", 
+                       current, 
+                       -1, 
+                       0.0, 
+                       {}, 
+                       {}, 
+                       SituationInstance::UNDETERMINED);
+    }
+    
+    // Set evidence in Bayesian network based on instance states
+    for (const auto& [id, instance] : causalInstanceMap) {
+        const std::string nodeName = std::to_string(id);
+        if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
+        
+        unsigned long nodeIdx = _nodeMap[nodeName];
+        if (instance.state == SituationInstance::TRIGGERED) {
+            set_node_value(*_bn, nodeIdx, 1);  // Set to true for triggered
+            if (logger) {
+                logger->logStep("BN Set Evidence", 
+                              current, 
+                              id, 
+                              1.0,  // Evidence value for triggered 
+                              {}, 
+                              {}, 
+                              instance.state);
+            }
+        } else if (instance.state == SituationInstance::UNTRIGGERED) {
+            set_node_value(*_bn, nodeIdx, 0);  // Set to false for untriggered
+            if (logger) {
+                logger->logStep("BN Set Evidence", 
+                              current, 
+                              id, 
+                              0.0,  // Evidence value for untriggered
+                              {}, 
+                              {}, 
+                              instance.state);
+            }
+        }
+    }
+    
+    // Perform belief propagation using join tree algorithm
+    bayesian_network_join_tree solution(*_bn, *_joinTree);
+    
+    // Update beliefs and states for each node
     calculateBeliefs(causalInstanceMap, current);
     
     // Step 4: Update original instanceMap with new beliefs and states
@@ -514,33 +577,133 @@ void BNInferenceEngine::constructCPT(const SituationNode& node, const std::map<l
     }
 }
 
+bool BNInferenceEngine::isCollider(unsigned long node, const std::vector<unsigned long>& path) const {
+    if (path.size() < 3) return false;
+    
+    // Find position of node in path
+    auto it = std::find(path.begin(), path.end(), node);
+    if (it == path.end()) return false;
+    
+    size_t pos = std::distance(path.begin(), it);
+    if (pos == 0 || pos == path.size() - 1) return false;
+    
+    // Check if node is a collider (← node ←)
+    unsigned long prev = path[pos - 1];
+    unsigned long next = path[pos + 1];
+    
+    // Check if both prev and next are parents of node
+    const auto& parents = getParents(node);
+    return std::find(parents.begin(), parents.end(), prev) != parents.end() &&
+           std::find(parents.begin(), parents.end(), next) != parents.end();
+}
+
+std::vector<unsigned long> BNInferenceEngine::getDescendants(unsigned long node) const {
+    std::vector<unsigned long> descendants;
+    std::set<unsigned long> visited;
+    std::queue<unsigned long> queue;
+    
+    // Start with immediate children
+    auto children = getChildren(node);
+    for (auto child : children) {
+        queue.push(child);
+    }
+    
+    while (!queue.empty()) {
+        unsigned long current = queue.front();
+        queue.pop();
+        
+        if (visited.find(current) != visited.end()) continue;
+        
+        visited.insert(current);
+        descendants.push_back(current);
+        
+        // Add children of current node
+        children = getChildren(current);
+        for (auto child : children) {
+            if (visited.find(child) == visited.end()) {
+                queue.push(child);
+            }
+        }
+    }
+    
+    return descendants;
+}
+
+bool BNInferenceEngine::isActive(unsigned long node, 
+                                const std::set<unsigned long>& conditioningSet,
+                                const std::vector<unsigned long>& path,
+                                std::set<unsigned long>& visited) const {
+    bool nodeInCondSet = conditioningSet.find(node) != conditioningSet.end();
+    
+    if (isCollider(node, path)) {
+        // For colliders, node or its descendants must be in conditioning set
+        if (nodeInCondSet) return true;
+        
+        auto descendants = getDescendants(node);
+        for (auto desc : descendants) {
+            if (conditioningSet.find(desc) != conditioningSet.end()) {
+                return true;
+            }
+        }
+        return false;
+    } else {
+        // For chains and forks, node must NOT be in conditioning set
+        return !nodeInCondSet;
+    }
+}
+
+bool BNInferenceEngine::hasActivePathDFS(unsigned long start, unsigned long end,
+                                       const std::set<unsigned long>& conditioningSet,
+                                       std::vector<unsigned long>& currentPath,
+                                       std::set<unsigned long>& visited) const {
+    if (start == end && currentPath.size() > 1) {
+        // Check if the path is active
+        for (size_t i = 1; i < currentPath.size() - 1; ++i) {
+            if (!isActive(currentPath[i], conditioningSet, currentPath, visited)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    // Get neighbors (both parents and children)
+    std::vector<unsigned long> neighbors;
+    auto parents = getParents(start);
+    auto children = getChildren(start);
+    neighbors.insert(neighbors.end(), parents.begin(), parents.end());
+    neighbors.insert(neighbors.end(), children.begin(), children.end());
+    
+    for (auto neighbor : neighbors) {
+        if (visited.find(neighbor) != visited.end()) continue;
+        
+        visited.insert(neighbor);
+        currentPath.push_back(neighbor);
+        
+        if (hasActivePathDFS(neighbor, end, conditioningSet, currentPath, visited)) {
+            return true;
+        }
+        
+        currentPath.pop_back();
+        visited.erase(neighbor);
+    }
+    
+    return false;
+}
+
+bool BNInferenceEngine::isDConnected(unsigned long start, unsigned long end,
+                                   const std::set<unsigned long>& conditioningSet) const {
+    std::vector<unsigned long> currentPath = {start};
+    std::set<unsigned long> visited = {start};
+    
+    return hasActivePathDFS(start, end, conditioningSet, currentPath, visited);
+}
+
 void BNInferenceEngine::calculateBeliefs(std::map<long, SituationInstance>& instanceMap, simtime_t current) {
     // First verify that the Bayesian network is valid
     if (_bn->number_of_nodes() == 0) {
         throw std::runtime_error("Empty Bayesian network");
     }
 
-    // Create join tree for inference
-    _joinTree = std::make_unique<join_tree_type>();
-    
-    // Create moral graph first, then create join tree
-    create_moral_graph(*_bn, *_joinTree);
-    create_join_tree(*_joinTree, *_joinTree);
-    
-    // Set evidence in Bayesian network based on instance states
-    for (const auto& [id, instance] : instanceMap) {
-        const std::string nodeName = std::to_string(id);
-        if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
-        
-        unsigned long nodeIdx = _nodeMap[nodeName];
-        if (instance.state == SituationInstance::TRIGGERED) {
-            set_node_value(*_bn, nodeIdx, 1);  // Set to true for triggered
-        } else if (instance.state == SituationInstance::UNTRIGGERED) {
-            set_node_value(*_bn, nodeIdx, 0);  // Set to false for untriggered
-        }
-        // For UNDETERMINED state, we don't set any evidence
-    }
-    
     // Perform belief propagation using join tree algorithm
     bayesian_network_join_tree solution(*_bn, *_joinTree);
     
@@ -596,7 +759,8 @@ BNInferenceEngine::findCausallyConnectedNodes(const std::map<long, SituationInst
         connectedNodes->reset();
         while (connectedNodes->move_next()) {
             long nodeId = connectedNodes->element();
-            nodes->add(nodeId);
+            long nodeIdCopy = nodeId;
+            nodes->add(nodeIdCopy);
         }
 
         // Create edges
@@ -610,23 +774,66 @@ BNInferenceEngine::findCausallyConnectedNodes(const std::map<long, SituationInst
 }
 
 std::unique_ptr<dlib::set<long>::kernel_1a> BNInferenceEngine::findConnectedNodes(const SituationNode& node) {
-    auto result = std::make_unique<dlib::set<long>::kernel_1a>();
+    auto connectedNodes = std::make_unique<dlib::set<long>::kernel_1a>();
     
-    // Add the node's own ID
-    long nodeId = node.id;
-    result->add(nodeId);
+    // Get the node ID from the map
+    const std::string nodeName = std::to_string(node.id);
+    if (_nodeMap.find(nodeName) == _nodeMap.end()) {
+        return connectedNodes;
+    }
+    unsigned long nodeIdx = _nodeMap[nodeName];
     
-    // Add causes
-    for (const auto& cause : node.causes) {
-        long causeId = cause;
-        result->add(causeId);
+    // Create conditioning set from all nodes except the current node
+    std::set<unsigned long> conditioningSet;
+    for (const auto& [name, idx] : _nodeMap) {
+        if (idx != nodeIdx) {
+            conditioningSet.insert(idx);
+        }
     }
     
-    // Add evidences
-    for (const auto& evidence : node.evidences) {
-        long evidenceId = evidence;
-        result->add(evidenceId);
+    // Check d-connection with all other nodes
+    for (const auto& [name, idx] : _nodeMap) {
+        if (idx != nodeIdx && isDConnected(nodeIdx, idx, conditioningSet)) {
+            long nodeId = std::stol(name);
+            connectedNodes->add(nodeId);
+        }
     }
     
-    return result;
+    return connectedNodes;
+}
+
+std::vector<unsigned long> BNInferenceEngine::getParents(unsigned long nodeIdx) const {
+    std::vector<unsigned long> parents;
+    
+    // Get the number of parents for this node
+    unsigned long num_parents = _bn->node(nodeIdx).number_of_parents();
+    
+    // For each parent index, get the actual parent node index
+    for (unsigned long i = 0; i < num_parents; ++i) {
+        unsigned long parent = _bn->node(nodeIdx).parent(i).index();
+        parents.push_back(parent);
+    }
+    
+    return parents;
+}
+
+std::vector<unsigned long> BNInferenceEngine::getChildren(unsigned long nodeIdx) const {
+    std::vector<unsigned long> children;
+    
+    // Iterate through all nodes to find those that have this node as a parent
+    for (unsigned long i = 0; i < _bn->number_of_nodes(); ++i) {
+        // Skip self
+        if (i == nodeIdx) continue;
+        
+        // Check if nodeIdx is a parent of node i
+        unsigned long num_parents = _bn->node(i).number_of_parents();
+        for (unsigned long j = 0; j < num_parents; ++j) {
+            if (_bn->node(i).parent(j).index() == nodeIdx) {
+                children.push_back(i);
+                break;  // Found as parent, no need to check other parent positions
+            }
+        }
+    }
+    
+    return children;
 }

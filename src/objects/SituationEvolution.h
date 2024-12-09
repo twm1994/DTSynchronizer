@@ -30,7 +30,7 @@ using namespace std;
 class SituationEvolution {
 protected:
     SituationGraph sg;
-    map<long, SituationInstance> instanceMap;
+std::map<long, SituationInstance> instanceMap;
 public:
     SituationEvolution();
     void initModel(const char *model_path);

@@ -33,7 +33,7 @@ using namespace std;
  */
 class SituationReasoner: public SituationEvolution {
 private:
-    std::unique_ptr<ReasonerLogger> logger;
+    std::shared_ptr<ReasonerLogger> logger;
 
     /**
      * Determine the state of a cause situation based on a child situation.

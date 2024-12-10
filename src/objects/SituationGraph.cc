@@ -343,12 +343,36 @@ SituationGraph SituationGraph::createSubgraph(const dlib::set<long>::kernel_1a& 
     }
     
     // Copy relations for edges in the subgraph
+    // First, copy all edges from edgeSet
     edgeSet.reset();
     while (edgeSet.move_next()) {
         auto edge = edgeSet.element();
         const SituationRelation* relation = getRelation(edge.first, edge.second);
         if (relation) {
             subgraph.relationMap[edge] = *relation;
+        }
+    }
+    
+    // Then, ensure all parent-child relationships from original graph are preserved
+    for (const auto& [nodeId, node] : subgraph.situationMap) {
+        // Add edges from causes (parents)
+        for (const auto& cause : node.causes) {
+            if (subgraph.situationMap.find(cause) != subgraph.situationMap.end()) {
+                const SituationRelation* relation = getRelation(cause, nodeId);
+                if (relation) {
+                    subgraph.relationMap[{cause, nodeId}] = *relation;
+                }
+            }
+        }
+        
+        // Add edges to evidences (children)
+        for (const auto& evidence : node.evidences) {
+            if (subgraph.situationMap.find(evidence) != subgraph.situationMap.end()) {
+                const SituationRelation* relation = getRelation(nodeId, evidence);
+                if (relation) {
+                    subgraph.relationMap[{nodeId, evidence}] = *relation;
+                }
+            }
         }
     }
     
@@ -365,10 +389,8 @@ SituationGraph SituationGraph::createSubgraph(const dlib::set<long>::kernel_1a& 
             }
         }
         
-        // Add edges that exist in the subgraph
-        edgeSet.reset();
-        while (edgeSet.move_next()) {
-            auto edge = edgeSet.element();
+        // Add all edges from relationMap that belong to this layer
+        for (const auto& [edge, relation] : subgraph.relationMap) {
             const auto& vertices = origLayer.getVertices();
             if (std::find(vertices.begin(), vertices.end(), edge.first) != vertices.end() &&
                 std::find(vertices.begin(), vertices.end(), edge.second) != vertices.end()) {

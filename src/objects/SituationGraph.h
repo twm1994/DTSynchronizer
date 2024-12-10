@@ -46,7 +46,6 @@ public:
     typedef pair<long, long> edge_id;
     map<edge_id, SituationRelation> relationMap;
     vector<DirectedGraph> layers;
-private:
     void buildReachabilityMatrix(set<long>& vertices, set<edge_id>& edges);
 
 public:

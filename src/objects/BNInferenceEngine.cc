@@ -64,12 +64,30 @@ void BNInferenceEngine::loadModel(SituationGraph sg) {
     std::cout << "Bayesian Network Model loading complete.\n" << std::endl;
 }
 
-void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstance> &instanceMap, simtime_t current, std::shared_ptr<ReasonerLogger> logger) {
+void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstance>& instanceMap, simtime_t current, std::shared_ptr<ReasonerLogger> logger) {
     _sg = sg;  // Update stored graph
     
     // Step 1: Discover causal structure and create subgraph
     auto [nodeSet, edgeSet] = findCausallyConnectedNodes(instanceMap);
+    
+    // Create sets for buildReachabilityMatrix
+    std::set<long> vertices;
+    std::set<SituationGraph::edge_id> edges;
+    
+    // Convert dlib sets to std::set for reachability matrix
+    nodeSet->reset();
+    while (nodeSet->move_next()) {
+        vertices.insert(nodeSet->element());
+    }
+    
+    edgeSet->reset();
+    while (edgeSet->move_next()) {
+        edges.insert(edgeSet->element());
+    }
+    
+    // Create subgraph and build its reachability matrix
     SituationGraph causalGraph = sg.createSubgraph(*nodeSet, *edgeSet);
+    causalGraph.buildReachabilityMatrix(vertices, edges);
     
     // Create instance map for causal subgraph
     std::map<long, SituationInstance> causalInstanceMap;
@@ -84,14 +102,71 @@ void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstan
     _nodeMap.clear();
     _joinTree.reset();
     
-    // Add nodes to Bayesian network
-    for (const auto& [id, node] : causalGraph.situationMap) {
-        addNode(std::to_string(id), node);
+    // First, create a sorted list of node IDs to ensure consistent indexing
+    std::vector<long> sortedNodeIds;
+    for (const auto& [id, _] : causalGraph.situationMap) {
+        sortedNodeIds.push_back(id);
+    }
+    std::sort(sortedNodeIds.begin(), sortedNodeIds.end());
+    
+    // Create mapping from situation ID to BN index
+    std::map<long, unsigned long> idToIndexMap;  // Maps situation ID to BN index
+    std::cout << "\nCreating node index mapping:" << std::endl;
+    for (size_t i = 0; i < sortedNodeIds.size(); ++i) {
+        long id = sortedNodeIds[i];
+        unsigned long idx = _bn->add_node();
+        idToIndexMap[id] = idx;
+        _nodeMap[std::to_string(id)] = idx;
+        std::cout << "  Node ID " << id << " -> BN index " << idx << std::endl;
     }
     
-    // Add edges to Bayesian network
+    // Add edges using the consistent index mapping
+    std::cout << "\nAdding edges using mapped indices:" << std::endl;
     for (const auto& [edge, relation] : causalGraph.relationMap) {
-        addEdge(std::to_string(edge.first), std::to_string(edge.second), relation.weight);
+        long parentId = edge.first;
+        long childId = edge.second;
+        
+        // Verify both nodes exist in our mapping
+        if (idToIndexMap.find(parentId) == idToIndexMap.end() ||
+            idToIndexMap.find(childId) == idToIndexMap.end()) {
+            std::cerr << "Warning: Edge " << parentId << "->" << childId 
+                     << " references non-existent node(s)" << std::endl;
+            continue;
+        }
+        
+        unsigned long parentIdx = idToIndexMap[parentId];
+        unsigned long childIdx = idToIndexMap[childId];
+        
+        _bn->add_edge(parentIdx, childIdx);
+        std::cout << "  Added edge: " << parentId << " (index " << parentIdx 
+                 << ") -> " << childId << " (index " << childIdx << ")" << std::endl;
+    }
+    
+    // Print final network structure for verification
+    std::cout << "\nVerifying network structure:" << std::endl;
+    for (const auto& [id, idx] : idToIndexMap) {
+        std::cout << "Node " << id << " (index " << idx << "):" << std::endl;
+        std::cout << "  Parents:";
+        for (unsigned long p = 0; p < _bn->node(idx).number_of_parents(); ++p) {
+            unsigned long parentIdx = _bn->node(idx).parent(p).index();
+            for (const auto& [pid, pidx] : idToIndexMap) {
+                if (pidx == parentIdx) {
+                    std::cout << " " << pid;
+                    break;
+                }
+            }
+        }
+        std::cout << "\n  Children:";
+        for (unsigned long c = 0; c < _bn->node(idx).number_of_children(); ++c) {
+            unsigned long childIdx = _bn->node(idx).child(c).index();
+            for (const auto& [cid, cidx] : idToIndexMap) {
+                if (cidx == childIdx) {
+                    std::cout << " " << cid;
+                    break;
+                }
+            }
+        }
+        std::cout << std::endl;
     }
     
     // Step 3: Construct CPTs for nodes in causal subgraph
@@ -99,53 +174,48 @@ void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstan
         constructCPT(node, causalInstanceMap);
     }
     
-    // Step 4: Calculate beliefs and update states
-    if (logger) {
-        logger->logStep("BN Belief Calculation Start", current, -1, 0.0, {}, {}, 
-                       SituationInstance::UNDETERMINED);
-    }
-
-    // Create join tree for inference
-    _joinTree = std::make_unique<join_tree_type>();
-    create_moral_graph(*_bn, *_joinTree);
-    create_join_tree(*_joinTree, *_joinTree);
-    
-    if (logger) {
-        logger->logStep("BN Join Tree Created", current, -1, 0.0, {}, {}, 
-                       SituationInstance::UNDETERMINED);
-    }
-    
-    // Set evidence in Bayesian network based on instance states
-    for (const auto& [id, instance] : causalInstanceMap) {
-        const std::string nodeName = std::to_string(id);
-        if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
+    // Step 4: Create join tree and calculate beliefs
+    try {
+        std::cout << "\nCreating join tree..." << std::endl;
+        std::cout << "Creating empty join tree" << std::endl;
+        _joinTree = std::make_unique<join_tree_type>();
         
-        unsigned long nodeIdx = _nodeMap[nodeName];
-        if (instance.state == SituationInstance::TRIGGERED) {
-            set_node_value(*_bn, nodeIdx, 1);
-            if (logger) {
-                logger->logStep("BN Set Evidence", current, id, 1.0, {}, {}, instance.state);
-            }
-        } else if (instance.state == SituationInstance::UNTRIGGERED) {
-            set_node_value(*_bn, nodeIdx, 0);
-            if (logger) {
-                logger->logStep("BN Set Evidence", current, id, 0.0, {}, {}, instance.state);
-            }
+        std::cout << "Creating moral graph..." << std::endl;
+        std::cout << "BN nodes: " << _bn->number_of_nodes() << std::endl;
+        
+        // Count edges by summing up each node's children
+        size_t edgeCount = 0;
+        for (unsigned long i = 0; i < _bn->number_of_nodes(); ++i) {
+            edgeCount += _bn->node(i).number_of_children();
         }
-    }
-    
-    // Perform belief propagation
-    bayesian_network_join_tree solution(*_bn, *_joinTree);
-    
-    // Update beliefs and states
-    calculateBeliefs(causalInstanceMap, current);
-    
-    // Step 5: Update original instanceMap with new beliefs and states
-    for (const auto& [id, instance] : causalInstanceMap) {
-        instanceMap[id].beliefValue = instance.beliefValue;
-        instanceMap[id].counter = instance.counter;
-        instanceMap[id].state = instance.state;
-        instanceMap[id].next_start = instance.next_start;
+        std::cout << "BN edges: " << edgeCount << std::endl;
+        
+        create_moral_graph(*_bn, *_joinTree);
+        std::cout << "Moral graph created successfully" << std::endl;
+        
+        std::cout << "Creating join tree from moral graph..." << std::endl;
+        create_join_tree(*_joinTree, *_joinTree);
+        std::cout << "Join tree created successfully" << std::endl;
+        
+        std::cout << "Starting belief calculation..." << std::endl;
+        calculateBeliefs(instanceMap, current);
+    } catch (const std::exception& e) {
+        std::cerr << "Error creating join tree or calculating beliefs: " << e.what() << std::endl;
+        std::cerr << "Current state:" << std::endl;
+        std::cerr << "  BN nodes: " << _bn->number_of_nodes() << std::endl;
+        
+        // Count edges in error state too
+        size_t edgeCount = 0;
+        for (unsigned long i = 0; i < _bn->number_of_nodes(); ++i) {
+            edgeCount += _bn->node(i).number_of_children();
+        }
+        std::cerr << "  BN edges: " << edgeCount << std::endl;
+        
+        std::cerr << "  NodeMap size: " << _nodeMap.size() << std::endl;
+        for (const auto& [name, idx] : _nodeMap) {
+            std::cerr << "    Node " << name << " -> " << idx << std::endl;
+        }
+        throw;  // Re-throw the exception
     }
 }
 
@@ -505,27 +575,31 @@ void BNInferenceEngine::constructCPT(const SituationNode& node, const std::map<l
                 }
                 
                 if (anyTrue) {
-                    std::cout << "Setting probabilities for node " << svIdx << " with assignment: " << std::endl;
-                    av.reset();
-                    while(av.move_next()) {
-                        std::cout << "  Key: " << av.element().key() << ", Value: " << av.element().value() << std::endl;
-                    }
                     try {
-                        dlib::bayes_node_utils::set_node_probability(*_bn, svIdx, 0, av, w_v);
-                        dlib::bayes_node_utils::set_node_probability(*_bn, svIdx, 1, av, 1.0-w_v);
+                        assignment a_temp;
+                        for (const auto& orNode : orNodes) {
+                            std::string nodeName = std::to_string(orNode);
+                            if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
+                            unsigned long idx = _nodeMap[nodeName];
+                            a_temp.add(idx, av[idx]);
+                        }
+                        dlib::bayes_node_utils::set_node_probability(*_bn, svIdx, 0, a_temp, w_v);
+                        dlib::bayes_node_utils::set_node_probability(*_bn, svIdx, 1, a_temp, 1.0-w_v);
                         std::cout << "Successfully set probabilities: " << w_v << " and " << (1.0-w_v) << std::endl;
                     } catch (const std::exception& e) {
                         std::cerr << "Error setting probabilities for node " << svIdx << ": " << e.what() << std::endl;
                     }
                 } else {
-                    std::cout << "Setting default probabilities for node " << svIdx << " with assignment: " << std::endl;
-                    av.reset();
-                    while(av.move_next()) {
-                        std::cout << "  Key: " << av.element().key() << ", Value: " << av.element().value() << std::endl;
-                    }
                     try {
-                        dlib::bayes_node_utils::set_node_probability(*_bn, svIdx, 0, av, 1.0);
-                        dlib::bayes_node_utils::set_node_probability(*_bn, svIdx, 1, av, 0.0);
+                        assignment a_temp;
+                        for (const auto& orNode : orNodes) {
+                            std::string nodeName = std::to_string(orNode);
+                            if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
+                            unsigned long idx = _nodeMap[nodeName];
+                            a_temp.add(idx, av[idx]);
+                        }
+                        dlib::bayes_node_utils::set_node_probability(*_bn, svIdx, 0, a_temp, 1.0);
+                        dlib::bayes_node_utils::set_node_probability(*_bn, svIdx, 1, a_temp, 0.0);
                         std::cout << "Successfully set default probabilities: 1.0 and 0.0" << std::endl;
                     } catch (const std::exception& e) {
                         std::cerr << "Error setting default probabilities for node " << svIdx << ": " << e.what() << std::endl;
@@ -666,50 +740,136 @@ bool BNInferenceEngine::isDConnected(unsigned long start, unsigned long end,
 }
 
 void BNInferenceEngine::calculateBeliefs(std::map<long, SituationInstance>& instanceMap, simtime_t current) {
-    // First verify that the Bayesian network is valid
-    if (_bn->number_of_nodes() == 0) {
-        throw std::runtime_error("Empty Bayesian network");
-    }
-
-    // Perform belief propagation using join tree algorithm
-    bayesian_network_join_tree solution(*_bn, *_joinTree);
-    
-    // Update beliefs and states for each node
-    for (auto& [id, instance] : instanceMap) {
-        // Skip if not in Bayesian network
-        const std::string nodeName = std::to_string(id);
-        if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
+    try {
+        std::cout << "\nSetting evidence in Bayesian network..." << std::endl;
+        std::cout << "Instance map size: " << instanceMap.size() << std::endl;
         
-        unsigned long nodeIdx = _nodeMap[nodeName];
-        
-        // Only process UNDETERMINED nodes
-        if (instance.state == SituationInstance::UNDETERMINED) {
-            // Get marginal probability for this node being true
-            double beliefTrue = solution.probability(nodeIdx)(1);
-            instance.beliefValue = beliefTrue;
-            
-            // Get the node's threshold from situation graph
-            const SituationNode& node = _sg.getNode(id);
-            
-            // Check if belief exceeds threshold and evidence counter condition is met
-            bool hasHigherCounterEvidence = false;
-            for (const auto& evidenceId : node.evidences) {
-                const auto& evidenceInstance = instanceMap[evidenceId];
-                if (instance.counter < evidenceInstance.counter) {
-                    hasHigherCounterEvidence = true;
-                    break;
+        // Set evidence for each node based on instance map
+        for (const auto& [id, instance] : instanceMap) {
+            try {
+                const std::string nodeName = std::to_string(id);
+                std::cout << "Processing node " << nodeName << "..." << std::endl;
+                
+                if (_nodeMap.find(nodeName) == _nodeMap.end()) {
+                    std::cout << "Node " << nodeName << " not found in _nodeMap, skipping" << std::endl;
+                    continue;
                 }
-            }
-            
-            // Update state based on belief value and evidence counter condition
-            if (beliefTrue >= node.threshold && hasHigherCounterEvidence) {
-                instance.state = SituationInstance::TRIGGERED;
-                instance.counter++;
-                instance.next_start = current;
-            } else {
-                instance.state = SituationInstance::UNTRIGGERED;
+                
+                unsigned long nodeIdx = _nodeMap[nodeName];
+                std::cout << "Found node index: " << nodeIdx << std::endl;
+                
+                if (instance.state == SituationInstance::TRIGGERED) {
+                    std::cout << "Setting node " << id << " (index " << nodeIdx << ") to TRIGGERED" << std::endl;
+                    set_node_value(*_bn, nodeIdx, 1);
+                } else if (instance.state == SituationInstance::UNTRIGGERED) {
+                    std::cout << "Setting node " << id << " (index " << nodeIdx << ") to UNTRIGGERED" << std::endl;
+                    set_node_value(*_bn, nodeIdx, 0);
+                }
+            } catch (const std::out_of_range& e) {
+                std::cerr << "Error: Node " << id << " not found in _nodeMap" << std::endl;
+                throw;
+            } catch (const std::exception& e) {
+                std::cerr << "Error setting evidence for node " << id << ": " << e.what() << std::endl;
+                throw;
             }
         }
+        
+        std::cout << "Evidence set successfully. Starting belief propagation..." << std::endl;
+        bayesian_network_join_tree solution(*_bn, *_joinTree);
+        std::cout << "Belief propagation completed successfully" << std::endl;
+        
+        // Print final probabilities for verification
+        std::cout << "\nFinal node probabilities:" << std::endl;
+        for (const auto& [nodeName, nodeIdx] : _nodeMap) {
+            try {
+                auto prob = solution.probability(nodeIdx)(1);
+                std::cout << "  " << nodeName << " (idx=" << nodeIdx << "): " << prob << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "Error getting probability for node " << nodeName << ": " << e.what() << std::endl;
+            }
+        }
+        
+        // Update beliefs and states for each node
+        std::cout << "\nUpdating beliefs and states..." << std::endl;
+        for (auto& [id, instance] : instanceMap) {
+            // Skip if not in Bayesian network
+            const std::string nodeName = std::to_string(id);
+            std::cout << "Processing node " << nodeName << " for belief update..." << std::endl;
+            
+            if (_nodeMap.find(nodeName) == _nodeMap.end()) {
+                std::cout << "Node " << nodeName << " not found in _nodeMap, skipping belief update" << std::endl;
+                continue;
+            }
+            
+            unsigned long nodeIdx = _nodeMap[nodeName];
+            std::cout << "Found node index for belief update: " << nodeIdx << std::endl;
+            
+            // Only process UNDETERMINED nodes
+            if (instance.state == SituationInstance::UNDETERMINED) {
+                try {
+                    std::cout << "Getting probability for node " << id << " (index " << nodeIdx << ")" << std::endl;
+                    // Get marginal probability for this node being true
+                    double beliefTrue = solution.probability(nodeIdx)(1);
+                    instance.beliefValue = beliefTrue;
+                    std::cout << "Node " << id << " belief: " << beliefTrue << std::endl;
+                    
+                    // Get the node's threshold from situation graph
+                    const SituationNode& node = _sg.getNode(id);
+                    std::cout << "Node threshold: " << node.threshold << std::endl;
+                    
+                    // Check if belief exceeds threshold and evidence counter condition is met
+                    bool hasHigherCounterEvidence = false;
+                    for (const auto& evidenceId : node.evidences) {
+                        const auto& evidenceInstance = instanceMap[evidenceId];
+                        std::cout << "Checking evidence " << evidenceId << " (counter: " << evidenceInstance.counter 
+                                << " vs current: " << instance.counter << ")" << std::endl;
+                        if (instance.counter < evidenceInstance.counter) {
+                            hasHigherCounterEvidence = true;
+                            break;
+                        }
+                    }
+                    
+                    // Update state based on belief value and evidence counter condition
+                    if (beliefTrue >= node.threshold && hasHigherCounterEvidence) {
+                        instance.state = SituationInstance::TRIGGERED;
+                        instance.counter++;
+                        instance.next_start = current;
+                        std::cout << "Node " << id << " TRIGGERED (belief: " << beliefTrue 
+                                << " >= threshold: " << node.threshold 
+                                << " and has higher counter evidence)" << std::endl;
+                    } else {
+                        instance.state = SituationInstance::UNTRIGGERED;
+                        std::cout << "Node " << id << " UNTRIGGERED (belief: " << beliefTrue 
+                                << " < threshold: " << node.threshold 
+                                << " or no higher counter evidence)" << std::endl;
+                    }
+                } catch (const std::exception& e) {
+                    std::cerr << "Error calculating belief for node " << id << ": " << e.what() << std::endl;
+                    throw;  // Re-throw to be caught by outer try-catch
+                }
+            } else {
+                std::cout << "Node " << id << " is not UNDETERMINED, skipping belief update" << std::endl;
+            }
+        }
+        std::cout << "Belief calculation completed successfully" << std::endl;
+        
+    } catch (const std::exception& e) {
+        std::cerr << "\nError in calculateBeliefs: " << e.what() << std::endl;
+        std::cerr << "Current state:" << std::endl;
+        std::cerr << "  BN nodes: " << _bn->number_of_nodes() << std::endl;
+        
+        // Count edges by summing up each node's children
+        size_t edgeCount = 0;
+        for (unsigned long i = 0; i < _bn->number_of_nodes(); ++i) {
+            edgeCount += _bn->node(i).number_of_children();
+        }
+        std::cerr << "  BN edges: " << edgeCount << std::endl;
+        
+        std::cerr << "  NodeMap size: " << _nodeMap.size() << std::endl;
+        for (const auto& [name, idx] : _nodeMap) {
+            std::cerr << "    Node " << name << " -> " << idx << std::endl;
+        }
+        throw;  // Re-throw the exception
     }
 }
 

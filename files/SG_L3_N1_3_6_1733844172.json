@@ -1,0 +1,326 @@
+{
+  "layers": [
+    [
+      {
+        "ID": 101,
+        "Predecessors": null,
+        "Children": [
+          {
+            "ID": 203,
+            "Weight-y": 0.97,
+            "Relation": 2
+          },
+          {
+            "ID": 201,
+            "Weight-y": 0.98,
+            "Relation": 2
+          }
+        ],
+        "Duration": 1000,
+        "Cycle": 1500,
+        "type": 1
+      }
+    ],
+    [
+      {
+        "ID": 201,
+        "Predecessors": [
+          {
+            "ID": 201,
+            "Weight-x": 0.98,
+            "Relation": 1
+          }
+        ],
+        "Children": [
+          {
+            "ID": 306,
+            "Weight-y": 0.96,
+            "Relation": 1
+          },
+          {
+            "ID": 303,
+            "Weight-y": 0.99,
+            "Relation": 2
+          },
+          {
+            "ID": 305,
+            "Weight-y": 0.97,
+            "Relation": 1
+          },
+          {
+            "ID": 304,
+            "Weight-y": 0.96,
+            "Relation": 1
+          },
+          {
+            "ID": 302,
+            "Weight-y": 0.97,
+            "Relation": 1
+          },
+          {
+            "ID": 301,
+            "Weight-y": 0.97,
+            "Relation": 2
+          }
+        ],
+        "Duration": 1000,
+        "Cycle": 2000,
+        "type": 1
+      },
+      {
+        "ID": 202,
+        "Predecessors": [
+          {
+            "ID": 202,
+            "Weight-x": 0.95,
+            "Relation": 1
+          }
+        ],
+        "Children": [
+          {
+            "ID": 301,
+            "Weight-y": 0.98,
+            "Relation": 1
+          },
+          {
+            "ID": 302,
+            "Weight-y": 0.96,
+            "Relation": 1
+          },
+          {
+            "ID": 305,
+            "Weight-y": 0.97,
+            "Relation": 1
+          },
+          {
+            "ID": 306,
+            "Weight-y": 0.96,
+            "Relation": 1
+          },
+          {
+            "ID": 303,
+            "Weight-y": 0.97,
+            "Relation": 2
+          },
+          {
+            "ID": 202,
+            "Weight-x": 0.95,
+            "Relation": 1
+          }
+        ],
+        "Duration": 0,
+        "Cycle": 1000,
+        "type": 0
+      },
+      {
+        "ID": 203,
+        "Predecessors": [
+          {
+            "ID": 203,
+            "Weight-x": 0.95,
+            "Relation": 1
+          }
+        ],
+        "Children": [
+          {
+            "ID": 302,
+            "Weight-y": 0.96,
+            "Relation": 1
+          },
+          {
+            "ID": 304,
+            "Weight-y": 0.97,
+            "Relation": 1
+          },
+          {
+            "ID": 306,
+            "Weight-y": 0.96,
+            "Relation": 1
+          },
+          {
+            "ID": 305,
+            "Weight-y": 0.96,
+            "Relation": 1
+          },
+          {
+            "ID": 301,
+            "Weight-y": 0.98,
+            "Relation": 2
+          }
+        ],
+        "Duration": 1000,
+        "Cycle": 1500,
+        "type": 1
+      }
+    ],
+    [
+      {
+        "ID": 301,
+        "Predecessors": [
+          {
+            "ID": 301,
+            "Weight-x": 0.98,
+            "Relation": 1
+          },
+          {
+            "ID": 301,
+            "Weight-x": 0.95,
+            "Relation": 1
+          },
+          {
+            "ID": 301,
+            "Weight-x": 0.97,
+            "Relation": 1
+          }
+        ],
+        "Children": null,
+        "Duration": 0,
+        "Cycle": 0,
+        "type": 0
+      },
+      {
+        "ID": 302,
+        "Predecessors": [
+          {
+            "ID": 302,
+            "Weight-x": 0.98,
+            "Relation": 1
+          },
+          {
+            "ID": 302,
+            "Weight-x": 0.95,
+            "Relation": 1
+          },
+          {
+            "ID": 302,
+            "Weight-x": 0.97,
+            "Relation": 1
+          },
+          {
+            "ID": 302,
+            "Weight-x": 0.99,
+            "Relation": 1
+          }
+        ],
+        "Children": [
+          {
+            "ID": 302,
+            "Weight-x": 0.99,
+            "Relation": 1
+          }
+        ],
+        "Duration": 1000,
+        "Cycle": 2500,
+        "type": 0
+      },
+      {
+        "ID": 303,
+        "Predecessors": [
+          {
+            "ID": 303,
+            "Weight-x": 0.95,
+            "Relation": 1
+          },
+          {
+            "ID": 303,
+            "Weight-x": 0.97,
+            "Relation": 1
+          },
+          {
+            "ID": 303,
+            "Weight-x": 0.98,
+            "Relation": 1
+          }
+        ],
+        "Children": [
+          {
+            "ID": 303,
+            "Weight-x": 0.98,
+            "Relation": 1
+          }
+        ],
+        "Duration": 3000,
+        "Cycle": 0,
+        "type": 1
+      },
+      {
+        "ID": 304,
+        "Predecessors": [
+          {
+            "ID": 304,
+            "Weight-x": 0.99,
+            "Relation": 1
+          },
+          {
+            "ID": 304,
+            "Weight-x": 0.99,
+            "Relation": 1
+          },
+          {
+            "ID": 304,
+            "Weight-x": 0.98,
+            "Relation": 1
+          }
+        ],
+        "Children": [
+          {
+            "ID": 304,
+            "Weight-x": 0.98,
+            "Relation": 1
+          }
+        ],
+        "Duration": 3000,
+        "Cycle": 0,
+        "type": 0
+      },
+      {
+        "ID": 305,
+        "Predecessors": [
+          {
+            "ID": 305,
+            "Weight-x": 0.95,
+            "Relation": 1
+          },
+          {
+            "ID": 305,
+            "Weight-x": 0.96,
+            "Relation": 1
+          },
+          {
+            "ID": 305,
+            "Weight-x": 0.96,
+            "Relation": 1
+          }
+        ],
+        "Children": null,
+        "Duration": 3000,
+        "Cycle": 0,
+        "type": 1
+      },
+      {
+        "ID": 306,
+        "Predecessors": [
+          {
+            "ID": 306,
+            "Weight-x": 0.97,
+            "Relation": 1
+          },
+          {
+            "ID": 306,
+            "Weight-x": 0.96,
+            "Relation": 1
+          },
+          {
+            "ID": 306,
+            "Weight-x": 0.98,
+            "Relation": 1
+          }
+        ],
+        "Children": null,
+        "Duration": 1000,
+        "Cycle": 2500,
+        "type": 0
+      }
+    ]
+  ]
+}

@@ -45,7 +45,8 @@ class SituationGraphGenerator:
     def _generate_connection(self, source_id: int, target_id: int, is_vertical: bool) -> Dict[str, Any]:
         """Generate a connection between two nodes."""
         weight = round(random.uniform(0.95, 0.99), 2)
-        relation = random.randint(1, 2) if is_vertical else 0
+        # Only use relation types 1 and 2 for vertical connections
+        relation = random.randint(1, 2) if is_vertical else 1  # Changed to always use case 1 for horizontal
         weight_key = "Weight-y" if is_vertical else "Weight-x"
         
         return {

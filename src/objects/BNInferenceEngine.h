@@ -6,13 +6,17 @@
 #include <map>
 #include <vector>
 #include <set>
-#include "SituationGraph.h"
-#include "SituationInstance.h"
-#include "../utils/ReasonerLogger.h"
+#include <utility>
 #include <dlib/directed_graph.h>
 #include <dlib/graph_utils.h>
 #include <dlib/bayes_utils.h>
 #include <dlib/set.h>
+
+#include "SituationGraph.h"
+#include "SituationNode.h"
+#include "SituationInstance.h"
+#include "SituationRelation.h"
+#include "../utils/ReasonerLogger.h"
 
 using namespace dlib;
 using namespace dlib::bayes_node_utils;
@@ -55,16 +59,21 @@ namespace dlib {
     }
 }
 
+using bayes_network = dlib::directed_graph<dlib::bayes_node>::kernel_1a_c;
+
 class BNInferenceEngine {
 private:
     typedef dlib::set<unsigned long>::kernel_1a set_type;
-    typedef dlib::directed_graph<bayes_node>::kernel_1a_c bn_type;
+    typedef bayes_network bn_type;
     typedef dlib::graph<set_type, set_type>::kernel_1a_c join_tree_type;
     
     SituationGraph _sg;
     std::unique_ptr<bn_type> _bn;
     std::map<std::string, unsigned long> _nodeMap;
     std::unique_ptr<join_tree_type> _joinTree;
+    
+    // Solution object for inference
+    std::unique_ptr<dlib::bayesian_network_join_tree> _solution;
     
     void addNode(const std::string& name, const SituationNode& node);
     void addEdge(const std::string& parentName, const std::string& childName, double weight);
@@ -129,6 +138,7 @@ public:
                std::map<long, SituationInstance> &instanceMap,
                simtime_t current,
                std::shared_ptr<ReasonerLogger> logger = nullptr);
+    void convertGraphToBN(const SituationGraph& sg);
 };
 
 #endif /* BNINFENGINE_H_ */

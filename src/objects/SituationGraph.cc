@@ -225,10 +225,10 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
                 for (pt::ptree::value_type & chd : node.second.get_child(
                         "Children")) {
                     SituationRelation relation;
-                    long childId = chd.second.get<long>("ID");
-                    relation.src = situation.id;  // Parent is the source
-                    relation.dest = childId;      // Child is the destination
-                    situation.evidences.push_back(childId);
+                    long src = chd.second.get<long>("ID");
+                    relation.src = src;
+                    relation.dest = situation.id;
+                    situation.evidences.push_back(chd.second.get<long>("ID"));
                     relation.type = SituationRelation::V;
                     short relationValue = chd.second.get<short>("Relation");
                     switch (relationValue) {
@@ -243,14 +243,13 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
                     }
                     relation.weight = chd.second.get<double>("Weight-y");
                     edge_id eid;
-                    eid.first = relation.src;    // Parent->Child edge
+                    eid.first = src;
                     eid.second = relation.dest;
                     relationMap[eid] = relation;
-                    edges.insert(eid);
-                    
                     edge_id reid;
-                    reid.first = relation.dest;   // Child->Parent edge
-                    reid.second = relation.src;
+                    reid.first = relation.dest;
+                    reid.second = src;
+                    edges.insert(eid);
                     edges.insert(reid);
                 }
             }

@@ -47,28 +47,15 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
             
             // Collect evidence nodes from the layer below
             std::vector<long> evidenceNodes;
-            std::cout << "\nCollecting evidence for node " << nodeId << ":\n";
-            std::cout << "  Evidence list from hypothesisNode: ";
-            for (long id : hypothesisNode.evidences) {
-                std::cout << id << " ";
-            }
-            std::cout << "\n";
-            
             for (long evidenceId : hypothesisNode.evidences) {
-                const SituationRelation* relation = graph.getRelation(nodeId, evidenceId);
-                std::cout << "  Checking relation " << nodeId << "->" << evidenceId << ": ";
-                if (relation) {
+                // In loadModel, evidence nodes are stored as source and parent as destination
+                const SituationRelation* relation = graph.getRelation(evidenceId, nodeId);
+                std::cout << "  Checking relation " << evidenceId << "->" << nodeId << ": ";
+                if (relation && relation->type == SituationRelation::V) {
                     std::cout << "found, type=" << relation->type << ", relation=" << relation->relation << "\n";
                     evidenceNodes.push_back(evidenceId);
-                } else {
-                    std::cout << "not found\n";
                 }
             }
-            std::cout << "  Final evidence nodes: ";
-            for (long id : evidenceNodes) {
-                std::cout << id << " ";
-            }
-            std::cout << "\n";
             
             // Case 1: Base hypothesis (no evidence nodes)
             // Set belief to expert-defined measure
@@ -80,7 +67,7 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
             // Belief = evidence_belief * relation_weight
             else if (evidenceNodes.size() == 1) {
                 long evidenceId = evidenceNodes[0];
-                const SituationRelation* relation = graph.getRelation(nodeId, evidenceId);
+                const SituationRelation* relation = graph.getRelation(evidenceId, nodeId);
                 std::cout << "\nCase 2 (SOLE) for node " << nodeId << ":\n";
                 std::cout << "  Evidence node: " << evidenceId << "\n";
                 if (relation) {
@@ -104,7 +91,7 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
                 std::cout << "\nChecking relations for node " << nodeId << " with " << evidenceNodes.size() << " evidence nodes:\n";
                 // Verify relation types
                 for (long evidenceId : evidenceNodes) {
-                    const SituationRelation* relation = graph.getRelation(nodeId, evidenceId);
+                    const SituationRelation* relation = graph.getRelation(evidenceId, nodeId);
                     if (relation) {
                         std::cout << "  Node " << evidenceId << " relation: " << relation->relation << " (1=AND)\n";
                         if (relation->relation != SituationRelation::OR) allOr = false;
@@ -118,7 +105,7 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
                 if (allOr) {
                     double maxWeightedBelief = 0.0;
                     for (long evidenceId : evidenceNodes) {
-                        const SituationRelation* relation = graph.getRelation(nodeId, evidenceId);
+                        const SituationRelation* relation = graph.getRelation(evidenceId, nodeId);
                         if (relation) {
                             SituationInstance& evidenceInstance = instanceMap[evidenceId];
                             double weightedBelief = evidenceInstance.beliefValue * relation->weight;
@@ -134,7 +121,7 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
                     std::cout << "\nCase 4 (AND) for node " << nodeId << ":\n";
                     // Start with first evidence's weighted belief
                     long firstEvidenceId = evidenceNodes[0];
-                    const SituationRelation* firstRelation = graph.getRelation(nodeId, firstEvidenceId);
+                    const SituationRelation* firstRelation = graph.getRelation(firstEvidenceId, nodeId);
                     SituationInstance& firstEvidence = instanceMap[firstEvidenceId];
                     double combinedBelief = firstEvidence.beliefValue * firstRelation->weight;
                     std::cout << "  Initial belief from node " << firstEvidenceId 
@@ -145,7 +132,7 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
                     // Combine remaining evidence beliefs using Dempster's rule
                     for (size_t i = 1; i < evidenceNodes.size(); i++) {
                         long evidenceId = evidenceNodes[i];
-                        const SituationRelation* relation = graph.getRelation(nodeId, evidenceId);
+                        const SituationRelation* relation = graph.getRelation(evidenceId, nodeId);
                         if (!relation) continue;
                         
                         SituationInstance& evidenceInstance = instanceMap[evidenceId];

@@ -20,6 +20,7 @@
 #include <map>
 #include <vector>
 #include <utility>
+#include <iostream> // Added for std::ostream
 // Boost includes
 #include <boost/tuple/tuple.hpp>
 #include <boost/tuple/tuple_comparison.hpp>
@@ -52,7 +53,7 @@ public:
     vector<long> getAllOperationalSitutions();
     vector<long> getOperationalSitutions(long topNodeId);
     bool isReachable(long src, long dest);
-    void loadModel(const std::string &filename, SituationEvolution* arranger);
+    void loadModel(const std::string &filename, SituationEvolution* se);
     DirectedGraph getLayer(int index) const;
     int modelHeight() const;
     SituationNode getNode(long id) const;
@@ -63,7 +64,7 @@ public:
     // int modelHeight();
     // SituationNode getNode(long id);
     int numOfNodes() const;
-    void print();
+    void print(std::ostream& os = std::cout);
     virtual ~SituationGraph();
 };
 

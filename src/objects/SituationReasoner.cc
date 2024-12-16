@@ -16,6 +16,7 @@
 #include "../common/Util.h"
 #include "SituationReasoner.h"
 #include <random>
+#include <iostream>
 
 SituationReasoner::SituationReasoner() :
         SituationEvolution() {
@@ -25,18 +26,7 @@ SituationReasoner::~SituationReasoner() {
 }
 
 void SituationReasoner::initializeLogger(const std::string& logBasePath) {
-    logger = std::make_shared<ReasonerLogger>(logBasePath);
-    
-    // Initialize instances for all nodes in the graph starting from bottom layer
-    for (int layer = sg.modelHeight() - 1; layer >= 0; layer--) {
-        DirectedGraph currentLayer = sg.getLayer(layer);
-        std::vector<long> nodes = currentLayer.topo_sort();
-        for (long nodeId : nodes) {
-            if (instanceMap.find(nodeId) == instanceMap.end()) {
-                addInstance(nodeId);
-            }
-        }
-    }
+    // Removed logger initialization
 }
 
 void SituationReasoner::beliefPropagation(SituationGraph& graph) {
@@ -48,52 +38,62 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
         DirectedGraph currentLayer = graph.getLayer(layer);
         std::vector<long> nodes = currentLayer.topo_sort();
         
-        if (logger) {
-            logger->logStep("Processing Layer" + std::to_string(layer),
-                          current, 
-                          -1, 
-                          0.0, 
-                          {}, 
-                          {}, 
-                          SituationInstance::UNDETERMINED);
-        }
+        std::cout << "\nProcessing Layer " << layer << ":\n";
         
         // Process each node in the current layer as a hypothesis
         for (long nodeId : nodes) {
             const SituationNode& hypothesisNode = graph.getNode(nodeId);
             SituationInstance& hypothesisInstance = instanceMap[nodeId];
             
-            // Collect evidence nodes from the layer below (type-V relations)
+            // Collect evidence nodes from the layer below
             std::vector<long> evidenceNodes;
+            std::cout << "\nCollecting evidence for node " << nodeId << ":\n";
+            std::cout << "  Evidence list from hypothesisNode: ";
+            for (long id : hypothesisNode.evidences) {
+                std::cout << id << " ";
+            }
+            std::cout << "\n";
+            
             for (long evidenceId : hypothesisNode.evidences) {
                 const SituationRelation* relation = graph.getRelation(nodeId, evidenceId);
-                if (relation && relation->type == SituationRelation::V) {
+                std::cout << "  Checking relation " << nodeId << "->" << evidenceId << ": ";
+                if (relation) {
+                    std::cout << "found, type=" << relation->type << ", relation=" << relation->relation << "\n";
                     evidenceNodes.push_back(evidenceId);
+                } else {
+                    std::cout << "not found\n";
                 }
             }
+            std::cout << "  Final evidence nodes: ";
+            for (long id : evidenceNodes) {
+                std::cout << id << " ";
+            }
+            std::cout << "\n";
             
             // Case 1: Base hypothesis (no evidence nodes)
             // Set belief to expert-defined measure
             if (evidenceNodes.empty()) {
                 hypothesisInstance.beliefValue = 0.8;  // Expert-defined measure
-                if (logger) {
-                    logger->logStep("Base Hypothesis", 
-                                  current, 
-                                  nodeId, 
-                                  hypothesisInstance.beliefValue, 
-                                  convertMapValueToVector(hypothesisInstance.childrenBeliefs),
-                                  convertMapValueToVector(hypothesisInstance.predecessorBeliefs),
-                                  hypothesisInstance.state);
-                }
+                std::cout << "  Base Hypothesis " << nodeId << ": " << hypothesisInstance.beliefValue << "\n";
             }
             // Case 2: Single evidence with SOLE relation
             // Belief = evidence_belief * relation_weight
             else if (evidenceNodes.size() == 1) {
                 long evidenceId = evidenceNodes[0];
                 const SituationRelation* relation = graph.getRelation(nodeId, evidenceId);
+                std::cout << "\nCase 2 (SOLE) for node " << nodeId << ":\n";
+                std::cout << "  Evidence node: " << evidenceId << "\n";
+                if (relation) {
+                    std::cout << "  Relation type: " << relation->relation << " (0=SOLE)\n";
+                    std::cout << "  Relation weight: " << relation->weight << "\n";
+                }
                 if (relation && relation->relation == SituationRelation::SOLE) {
                     SituationInstance& evidenceInstance = instanceMap[evidenceId];
+                    std::cout << "  Evidence belief: " << evidenceInstance.beliefValue << "\n";
                     hypothesisInstance.beliefValue = evidenceInstance.beliefValue * relation->weight;
+                    std::cout << "  Final belief: " << hypothesisInstance.beliefValue << "\n";
+                } else {
+                    std::cout << "  Skipped: Relation is not SOLE\n";
                 }
             }
             // Cases 3 & 4: Multiple evidence nodes with OR or AND relations
@@ -101,14 +101,17 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
                 bool allOr = true;
                 bool allAnd = true;
                 
+                std::cout << "\nChecking relations for node " << nodeId << " with " << evidenceNodes.size() << " evidence nodes:\n";
                 // Verify relation types
                 for (long evidenceId : evidenceNodes) {
                     const SituationRelation* relation = graph.getRelation(nodeId, evidenceId);
                     if (relation) {
+                        std::cout << "  Node " << evidenceId << " relation: " << relation->relation << " (1=AND)\n";
                         if (relation->relation != SituationRelation::OR) allOr = false;
                         if (relation->relation != SituationRelation::AND) allAnd = false;
                     }
                 }
+                std::cout << "  allOr: " << allOr << ", allAnd: " << allAnd << "\n";
                 
                 // Case 3: All OR relations
                 // Belief = max(evidence_belief * relation_weight)
@@ -123,15 +126,21 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
                         }
                     }
                     hypothesisInstance.beliefValue = maxWeightedBelief;
+                    std::cout << "  Final belief for node " << nodeId << ": " << hypothesisInstance.beliefValue << "\n";
                 }
                 // Case 4: All AND relations
                 // Belief = Dempster's combination of weighted beliefs
                 else if (allAnd) {
+                    std::cout << "\nCase 4 (AND) for node " << nodeId << ":\n";
                     // Start with first evidence's weighted belief
                     long firstEvidenceId = evidenceNodes[0];
                     const SituationRelation* firstRelation = graph.getRelation(nodeId, firstEvidenceId);
                     SituationInstance& firstEvidence = instanceMap[firstEvidenceId];
                     double combinedBelief = firstEvidence.beliefValue * firstRelation->weight;
+                    std::cout << "  Initial belief from node " << firstEvidenceId 
+                             << ": " << firstEvidence.beliefValue 
+                             << " * " << firstRelation->weight 
+                             << " = " << combinedBelief << "\n";
                     
                     // Combine remaining evidence beliefs using Dempster's rule
                     for (size_t i = 1; i < evidenceNodes.size(); i++) {
@@ -141,30 +150,32 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
                         
                         SituationInstance& evidenceInstance = instanceMap[evidenceId];
                         double weightedBelief = evidenceInstance.beliefValue * relation->weight;
+                        std::cout << "  Combining with node " << evidenceId 
+                                 << ": " << evidenceInstance.beliefValue 
+                                 << " * " << relation->weight 
+                                 << " = " << weightedBelief << "\n";
                         
                         // k = conflict measure between beliefs
                         double k = (1 - combinedBelief) * weightedBelief + combinedBelief * (1 - weightedBelief);
+                        std::cout << "    Conflict k: " << k << "\n";
                         
                         // m₁₂(A) = (m₁(A) × m₂(A)) / (1 - k)
                         if (k < 1.0) {
                             combinedBelief = (combinedBelief * weightedBelief) / (1 - k);
+                            std::cout << "    New combined belief: " << combinedBelief << "\n";
                         } else {
                             combinedBelief = 0.0;  // Complete conflict case
+                            std::cout << "    Complete conflict detected, belief set to 0\n";
                             break;
                         }
                     }
                     hypothesisInstance.beliefValue = combinedBelief;
+                    std::cout << "  Final belief for node " << nodeId << ": " << combinedBelief << "\n";
                 }
             }
             
             // Log belief update
-            if (logger) {
-                logger->logInstanceState(hypothesisInstance.id,
-                                      convertMapValueToVector(hypothesisInstance.childrenBeliefs),
-                                      convertMapValueToVector(hypothesisInstance.predecessorBeliefs),
-                                      hypothesisInstance.state,
-                                      current);
-            }
+            std::cout << "  Belief update for node " << nodeId << ": " << hypothesisInstance.beliefValue << "\n";
         }
     }
 }
@@ -176,6 +187,8 @@ void SituationReasoner::backwardRetrospection(SituationGraph& graph) {
     for (int layer = 0; layer < numLayers; layer++) {
         DirectedGraph currentLayer = graph.getLayer(layer);
         std::vector<long> nodes = currentLayer.topo_sort();
+        
+        std::cout << "\nProcessing Layer " << layer << ":\n";
         
         // First iteration: collect triggered situations in this layer
         std::vector<long> triggeredEffects;
@@ -221,25 +234,14 @@ void SituationReasoner::backwardRetrospection(SituationGraph& graph) {
                             triggeredEffects.push_back(causeId);
                         }
                         
-                        if (logger) {
-                            logger->logCausalReasoning(causeInstance.id, effectId, causeInstance.beliefValue, current);
-                        }
+                        std::cout << "  Cause situation " << causeId << " updated to " << newState << "\n";
                     } else if (causeInstance.state == SituationInstance::TRIGGERED) {
                         triggeredEffects.push_back(causeId);
                     }
                 }
             }
             
-            if (logger) {
-                SituationInstance& instance = instanceMap[effectId];
-                SituationInstance::State lastState = instance.stateBuffer.empty() ? 
-                    instance.state : instance.stateBuffer.back();
-                logger->logInstanceState(instance.id,
-                                      convertMapValueToVector(instance.childrenBeliefs),
-                                      convertMapValueToVector(instance.predecessorBeliefs),
-                                      lastState,
-                                      current);
-            }
+            std::cout << "  Effect situation " << effectId << " processed\n";
         }
     }
 }
@@ -251,6 +253,8 @@ void SituationReasoner::downwardRetrospection(SituationGraph& graph) {
     for (int layer = 0; layer < numLayers; layer++) {
         DirectedGraph currentLayer = graph.getLayer(layer);
         std::vector<long> nodes = currentLayer.topo_sort();
+        
+        std::cout << "\nProcessing Layer " << layer << ":\n";
         
         // First iteration: collect triggered situations in this layer
         std::vector<long> triggeredSituations;
@@ -291,22 +295,11 @@ void SituationReasoner::downwardRetrospection(SituationGraph& graph) {
                     SituationInstance::State newState = determineChildState(parentId, childId, graph);
                     childInstance.addStateToBuffer(newState);
                     
-                    if (logger) {
-                        logger->logCausalReasoning(parentId, childInstance.id, childInstance.beliefValue, current);
-                    }
+                    std::cout << "  Child situation " << childId << " updated to " << newState << "\n";
                 }
             }
             
-            if (logger) {
-                SituationInstance& instance = instanceMap[parentId];
-                SituationInstance::State lastState = instance.stateBuffer.empty() ? 
-                    instance.state : instance.stateBuffer.back();
-                logger->logInstanceState(instance.id,
-                                      convertMapValueToVector(instance.childrenBeliefs),
-                                      convertMapValueToVector(instance.predecessorBeliefs),
-                                      lastState,
-                                      current);
-            }
+            std::cout << "  Parent situation " << parentId << " processed\n";
         }
     }
 }
@@ -503,10 +496,8 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
     // Create a working copy of the situation graph
     SituationGraph workingGraph = sg;
 
-    if (logger) {
-        logger->logStep("Reasoning Start", current, -1, 0.0, {}, {}, SituationInstance::UNDETERMINED);
-    }
-
+    std::cout << "\nReasoning Start:\n";
+    
     int numOfLayers = workingGraph.modelHeight();
     // trigger bottom layer situations
     DirectedGraph g = workingGraph.getLayer(numOfLayers - 1);
@@ -519,47 +510,31 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
             instance.counter++;
             instance.next_start = current;
             
-            if (logger) {
-                logger->logStep("Bottom Layer Trigger", 
-                              current, 
-                              bottom, 
-                              instance.beliefValue, 
-                              convertMapValueToVector(instance.childrenBeliefs),
-                              convertMapValueToVector(instance.predecessorBeliefs),
-                              instance.state);
-            }
+            std::cout << "  Bottom Layer Trigger " << bottom << ":\n";
+            std::cout << "    State: " << instance.state << "\n";
+            std::cout << "    Counter: " << instance.counter << "\n";
+            std::cout << "    Next start: " << instance.next_start << "\n";
         }
     }
 
     // Run belief propagation and retrospection
-    if (logger) {
-        logger->logStep("Start Belief Propagation", current, -1, 0.0, {}, {}, SituationInstance::UNDETERMINED);
-    }
+    std::cout << "\nStart Belief Propagation:\n";
     beliefPropagation(workingGraph);
+    printInstances("Belief Propagation");
     
-    if (logger) {
-        logger->logStep("Start Backward Retrospection", current, -1, 0.0, {}, {}, SituationInstance::UNDETERMINED);
-    }
+    std::cout << "\nStart Backward Retrospection:\n";
     backwardRetrospection(workingGraph);
+    printInstances("Backward Retrospection");
     
-    if (logger) {
-        logger->logStep("Start Downward Retrospection", current, -1, 0.0, {}, {}, SituationInstance::UNDETERMINED);
-    }
+    std::cout << "\nStart Downward Retrospection:\n";
     downwardRetrospection(workingGraph);
+    printInstances("Downward Retrospection");
 
     // Update refinement with Bayesian Network reasoning
-    if (logger) {
-        logger->logStep("Start Bayesian Network Reasoning", current, -1, 0.0, {}, {}, SituationInstance::UNDETERMINED);
-    }
+    std::cout << "\nStart Bayesian Network Reasoning:\n";
     BNInferenceEngine engine;
     engine.convertGraphToBN(workingGraph);
-    if (logger) {
-        std::stringstream ss;
-        engine.printNetwork(ss);
-        ss.str("");  // Clear the stringstream
-        engine.printProbabilities(ss);
-    }
-    engine.reason(workingGraph, instanceMap, current, logger);
+    engine.reason(workingGraph, instanceMap, current, nullptr);
 
     // Randomly set bottom layer nodes to TRIGGERED state
     static std::mt19937 gen(std::random_device{}());
@@ -573,15 +548,10 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
             instance.next_start = current;
             tOperational.insert(instance.id);  // Add to operational set
             
-            if (logger) {
-                logger->logStep("Random Bottom Layer Trigger", 
-                              current, 
-                              bottom, 
-                              instance.beliefValue, 
-                              convertMapValueToVector(instance.childrenBeliefs),
-                              convertMapValueToVector(instance.predecessorBeliefs),
-                              instance.state);
-            }
+            std::cout << "  Random Bottom Layer Trigger " << bottom << ":\n";
+            std::cout << "    State: " << instance.state << "\n";
+            std::cout << "    Counter: " << instance.counter << "\n";
+            std::cout << "    Next start: " << instance.next_start << "\n";
         }
     }
     

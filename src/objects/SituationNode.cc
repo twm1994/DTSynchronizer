@@ -9,7 +9,7 @@
 
 SituationNode::SituationNode() {
     id = -1;
-    threshold = 0;
+    threshold = 0.95;
 }
 
 SituationNode::~SituationNode() {

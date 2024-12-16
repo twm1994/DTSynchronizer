@@ -33,7 +33,21 @@ using namespace std;
  */
 class SituationReasoner: public SituationEvolution {
 private:
+    SituationGraph workingGraph;
     std::shared_ptr<ReasonerLogger> logger;
+    BNInferenceEngine engine;
+
+    /**
+     * Print instances.
+     * 
+     * @param step The step after which to print instances.
+     */
+    void printInstances(const std::string& step) {
+        std::cout << "\n=== Instance state after " << step << " ===\n";
+        for (const auto& [id, instance] : instanceMap) {
+            std::cout << instance;
+        }
+    }
 
     /**
      * Determine the state of a cause situation based on a child situation.

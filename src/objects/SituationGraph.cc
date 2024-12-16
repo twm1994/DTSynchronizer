@@ -225,10 +225,10 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
                 for (pt::ptree::value_type & chd : node.second.get_child(
                         "Children")) {
                     SituationRelation relation;
-                    long src = chd.second.get<long>("ID");
-                    relation.src = src;
-                    relation.dest = situation.id;
-                    situation.evidences.push_back(chd.second.get<long>("ID"));
+                    long childId = chd.second.get<long>("ID");
+                    relation.src = situation.id;  // Parent is the source
+                    relation.dest = childId;      // Child is the destination
+                    situation.evidences.push_back(childId);
                     relation.type = SituationRelation::V;
                     short relationValue = chd.second.get<short>("Relation");
                     switch (relationValue) {
@@ -243,13 +243,14 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
                     }
                     relation.weight = chd.second.get<double>("Weight-y");
                     edge_id eid;
-                    eid.first = src;
+                    eid.first = relation.src;    // Parent->Child edge
                     eid.second = relation.dest;
                     relationMap[eid] = relation;
-                    edge_id reid;
-                    reid.first = relation.dest;
-                    reid.second = src;
                     edges.insert(eid);
+                    
+                    edge_id reid;
+                    reid.first = relation.dest;   // Child->Parent edge
+                    reid.second = relation.src;
                     edges.insert(reid);
                 }
             }
@@ -279,13 +280,10 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
      * Create reachability index
      */
     buildReachabilityMatrix(vertices, edges);
-//    cout << "print reachability matrix" << endl;
-//    for(auto row : *ri){
-//        for(auto col : row){
-//            cout << col << "  ";
-//        }
-//        cout << endl;
-//    }
+    
+    // Print the loaded model
+    std::cout << "Loaded situation graph from " << filename << ":\n";
+    print();
 }
 
 DirectedGraph SituationGraph::getLayer(int index) const {
@@ -325,10 +323,23 @@ int SituationGraph::numOfNodes() const {
     return situationMap.size();
 }
 
-void SituationGraph::print() {
-    for (auto m : situationMap) {
-        cout << m.second;
+void SituationGraph::print(std::ostream& os) {
+    os << "Situation Graph Contents:\n";
+    os << "======================\n\n";
+    
+    os << "Situations:\n";
+    os << "-----------\n";
+    for (const auto& pair : situationMap) {
+        os << pair.second;
+        os << '\n';
     }
+    
+    os << "Relations:\n";
+    os << "----------\n";
+    for (const auto& pair : relationMap) {
+        os << pair.second;
+    }
+    os << "======================\n";
 }
 
 SituationGraph::~SituationGraph() {

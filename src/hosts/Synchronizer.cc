@@ -25,7 +25,7 @@ Synchronizer::Synchronizer() {
     /*
      * Construct a situation graph and a situation inference engine
      */
-    sr.initModel("../files/SG_BinaryTree_L3_N1_2_4_1734048909.json");
+    sr.initModel("../files/SG_L3_N1_1_3_AND_1734084664.json");
     sog.setModel(sr.getModel());
     sog.setModelInstance(&sr);
 
@@ -105,6 +105,10 @@ void Synchronizer::handleMessage(cMessage *msg) {
                 bufferCounters[bufferCounter.first]--;
             }
         }
+
+        cout << "Triggered events: ";
+        util::printSet(triggered);
+        cout << endl;
 
         /*
          * The reasoning result contains a list of triggered observable situations,

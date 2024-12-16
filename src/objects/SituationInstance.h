@@ -56,7 +56,6 @@ public:
 
     // Belief-related members
     double beliefValue;          // Current belief from evidence combination
-    double beliefThreshold;      // Threshold for state transition
     bool beliefUpdated;          // Tracks if belief was updated in current cycle
     std::map<long, double> childrenBeliefs;
     std::map<long, double> predecessorBeliefs;
@@ -88,7 +87,7 @@ public:
     SituationInstance() : 
         id(-1), counter(0), state(UNTRIGGERED), type(NORMAL),
         duration(0), cycle(0), next_start(0),
-        beliefValue(0.0), beliefThreshold(0.7), beliefUpdated(false) {
+        beliefValue(0.0), beliefUpdated(false) {
         stateBuffer.clear();
     }
         
@@ -101,7 +100,7 @@ public:
     SituationInstance(long id, Type type, simtime_t duration, simtime_t cycle) :
         id(id), counter(0), state(UNTRIGGERED), type(NORMAL),
         duration(duration), cycle(cycle), next_start(0),
-        beliefValue(0.0), beliefThreshold(0.7), beliefUpdated(false) {
+        beliefValue(0.0), beliefUpdated(false) {
         stateBuffer.clear();
     }
     // SituationInstance();
@@ -137,8 +136,8 @@ public:
 inline std::ostream& operator<<(std::ostream &os, const SituationInstance &si) {
     os << "situation (" << si.id << "): counter " << si.counter << ", type "
             << si.type << ", state " << si.state << ", duration " << si.duration
-            << ", cycle " << si.cycle << ", next_start " << si.next_start
-            << endl;
+            << ", cycle " << si.cycle << ", next_start " << si.next_start << ", beliefValue " << si.beliefValue << ", "
+            << "beliefUpdated " << si.beliefUpdated << endl;
     return os;
 }
 

@@ -759,8 +759,10 @@ void BNInferenceEngine::calculateBeliefs(std::map<long, SituationInstance>& inst
         throw std::runtime_error("Empty Bayesian network");
     }
 
-    // Perform belief propagation using join tree algorithm
-    _solution.reset(new dlib::bayesian_network_join_tree(*_bn, *_joinTree));
+    // Ensure we have a valid solution object
+    if (!_solution) {
+        buildJoinTree();
+    }
     
     // Update beliefs and states for each node
     for (auto& [id, instance] : instanceMap) {
@@ -772,30 +774,36 @@ void BNInferenceEngine::calculateBeliefs(std::map<long, SituationInstance>& inst
         
         // Only process UNDETERMINED nodes
         if (instance.state == SituationInstance::UNDETERMINED) {
-            // Get marginal probability for this node being true
-            double beliefTrue = _solution->probability(nodeIdx)(1);
-            instance.beliefValue = beliefTrue;
-            
-            // Get the node's threshold from situation graph
-            const SituationNode& node = _sg.getNode(id);
-            
-            // Check if belief exceeds threshold and evidence counter condition is met
-            bool hasHigherCounterEvidence = false;
-            for (const auto& evidenceId : node.evidences) {
-                const auto& evidenceInstance = instanceMap[evidenceId];
-                if (instance.counter < evidenceInstance.counter) {
-                    hasHigherCounterEvidence = true;
-                    break;
+            try {
+                // Get marginal probability for this node being true
+                double beliefTrue = _solution->probability(nodeIdx)(1);
+                instance.beliefValue = beliefTrue;
+                
+                // Get the node's threshold from situation graph
+                const SituationNode& node = _sg.getNode(id);
+                
+                // Check if belief exceeds threshold and evidence counter condition is met
+                bool hasHigherCounterEvidence = false;
+                for (const auto& evidenceId : node.evidences) {
+                    const auto& evidenceInstance = instanceMap[evidenceId];
+                    if (instance.counter < evidenceInstance.counter) {
+                        hasHigherCounterEvidence = true;
+                        break;
+                    }
                 }
-            }
-            
-            // Update state based on belief value and evidence counter condition
-            if (beliefTrue >= node.threshold && hasHigherCounterEvidence) {
-                instance.state = SituationInstance::TRIGGERED;
-                instance.counter++;
-                instance.next_start = current;
-            } else {
-                instance.state = SituationInstance::UNTRIGGERED;
+                
+                // Update state based on belief value and evidence counter condition
+                if (beliefTrue >= node.threshold && hasHigherCounterEvidence) {
+                    instance.state = SituationInstance::TRIGGERED;
+                    instance.counter++;
+                    instance.next_start = current;
+                } else {
+                    instance.state = SituationInstance::UNTRIGGERED;
+                }
+            } catch (const std::exception& e) {
+                // If we get an error accessing probability, log it and skip this node
+                std::cerr << "Error calculating belief for node " << id << ": " << e.what() << std::endl;
+                continue;
             }
         }
     }
@@ -902,7 +910,12 @@ void BNInferenceEngine::buildJoinTree() {
     create_join_tree(*_joinTree, *_joinTree);
     
     // Create solution object for inference
-    _solution.reset(new dlib::bayesian_network_join_tree(*_bn, *_joinTree));
+    try {
+        _solution.reset(new dlib::bayesian_network_join_tree(*_bn, *_joinTree));
+    } catch (const std::exception& e) {
+        std::cerr << "Error creating join tree solution: " << e.what() << std::endl;
+        throw;
+    }
 }
 
 void BNInferenceEngine::convertGraphToBN(const SituationGraph& sg) {
@@ -938,11 +951,134 @@ void BNInferenceEngine::convertGraphToBN(const SituationGraph& sg) {
             }
         }
         
-        // Construct CPT for this node
+        // Create a temporary instance map with default instances for all nodes
         std::map<long, SituationInstance> tempInstanceMap;
+        for (const auto& [nodeId, _] : sg.situationMap) {
+            SituationInstance instance;
+            instance.id = nodeId;
+            instance.state = SituationInstance::UNDETERMINED;
+            instance.beliefValue = 0.5;  // Default belief value
+            tempInstanceMap[nodeId] = instance;
+        }
+        
+        // Construct CPT for this node
         constructCPT(node, tempInstanceMap);
     }
     
     // Build join tree for inference
     buildJoinTree();
+}
+
+void BNInferenceEngine::printNetwork(std::ostream& out) const {
+    if (!_bn) {
+        out << "Bayesian Network is not initialized." << std::endl;
+        return;
+    }
+
+    out << "Bayesian Network Structure:" << std::endl;
+    out << "Number of nodes: " << _bn->number_of_nodes() << std::endl;
+    
+    // Print nodes and their connections
+    for (unsigned long i = 0; i < _bn->number_of_nodes(); ++i) {
+        out << "Node " << i << " (";
+        
+        // Find and print the original node ID from _nodeMap
+        for (const auto& pair : _nodeMap) {
+            if (pair.second == i) {
+                out << "ID: " << pair.first;
+                break;
+            }
+        }
+        out << "):" << std::endl;
+        
+        // Print parents using number_of_parents() and parent()
+        out << "  Parents: ";
+        if (_bn->node(i).number_of_parents() == 0) {
+            out << "none";
+        } else {
+            for (unsigned long p = 0; p < _bn->node(i).number_of_parents(); ++p) {
+                out << _bn->node(i).parent(p).index() << " ";
+            }
+        }
+        out << std::endl;
+        
+        // Print children using number_of_children() and child()
+        out << "  Children: ";
+        if (_bn->node(i).number_of_children() == 0) {
+            out << "none";
+        } else {
+            for (unsigned long c = 0; c < _bn->node(i).number_of_children(); ++c) {
+                out << _bn->node(i).child(c).index() << " ";
+            }
+        }
+        out << std::endl;
+    }
+}
+
+void BNInferenceEngine::printProbabilities(std::ostream& out) const {
+    if (!_bn || !_joinTree) {
+        out << "Bayesian Network or Join Tree is not initialized." << std::endl;
+        return;
+    }
+
+    out << "\nBayesian Network Probabilities:" << std::endl;
+    
+    // Create a join tree solution to compute probabilities
+    dlib::bayesian_network_join_tree solution(*_bn, *_joinTree);
+    
+    // Print probabilities for each node
+    for (unsigned long i = 0; i < _bn->number_of_nodes(); ++i) {
+        out << "Node " << i << " (";
+        
+        // Find and print the original node ID from _nodeMap
+        for (const auto& pair : _nodeMap) {
+            if (pair.second == i) {
+                out << "ID: " << pair.first;
+                break;
+            }
+        }
+        out << "):" << std::endl;
+        
+        // Print marginal probabilities
+        out << "  Marginal probabilities:" << std::endl;
+        for (unsigned long val = 0; val < 2; ++val) {  // Assuming binary nodes
+            out << "    P(Node=" << val << ") = " << solution.probability(i)(val) << std::endl;
+        }
+        
+        // Print conditional probabilities if the node has parents
+        if (_bn->node(i).number_of_parents() > 0) {
+            out << "  Conditional probabilities:" << std::endl;
+            
+            // Create an assignment for parent states
+            dlib::assignment parent_state;
+            for (unsigned long p = 0; p < _bn->node(i).number_of_parents(); ++p) {
+                parent_state.add(_bn->node(i).parent(p).index(), 0);
+            }
+            
+            // Iterate through all possible parent combinations
+            bool done = false;
+            while (!done) {
+                out << "    P(Node=1 | ";
+                // Print parent states
+                for (unsigned long p = 0; p < _bn->node(i).number_of_parents(); ++p) {
+                    unsigned long parent_idx = _bn->node(i).parent(p).index();
+                    out << "Parent" << parent_idx << "=" << parent_state[parent_idx] << " ";
+                }
+                out << ") = " << dlib::bayes_node_utils::node_probability(*_bn, i, 1, parent_state) << std::endl;
+                
+                // Update parent states (like counting in binary)
+                done = true;
+                for (unsigned long p = 0; p < _bn->node(i).number_of_parents(); ++p) {
+                    unsigned long parent_idx = _bn->node(i).parent(p).index();
+                    if (parent_state[parent_idx] == 0) {
+                        parent_state[parent_idx] = 1;
+                        done = false;
+                        break;
+                    }
+                    parent_state[parent_idx] = 0;
+                }
+            }
+        }
+        out << std::endl;
+    }
 }

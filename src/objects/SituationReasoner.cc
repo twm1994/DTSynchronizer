@@ -15,6 +15,7 @@
 
 #include "../common/Util.h"
 #include "SituationReasoner.h"
+#include <random>
 
 SituationReasoner::SituationReasoner() :
         SituationEvolution() {
@@ -529,27 +530,6 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
             }
         }
     }
-    // for (int i = workingGraph.modelHeight() - 1; i > 0; i--) {
-    //     DirectedGraph g1 = sg.getLayer(i - 1);
-    //     std::vector<long> uppers = g1.topo_sort();
-    //     for (auto upper : uppers) {
-    //         SituationInstance &instance = instanceMap[upper];
-    //         SituationNode node = sg.getNode(instance.id);
-    //         bool toTrigger = true;
-    //         for (auto evidence : node.evidences) {
-    //             SituationInstance &es = instanceMap[evidence];
-    //             if (es.counter <= instance.counter) {
-    //                 toTrigger = false;
-    //                 break;
-    //             }
-    //         }
-    //         if (toTrigger) {
-    //             instance.state = SituationInstance::TRIGGERED;
-    //             instance.counter++;
-    //             instance.next_start = current;
-    //         }
-    //     }
-    // }
 
     // Run belief propagation and retrospection
     if (logger) {
@@ -572,16 +552,39 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
         logger->logStep("Start Bayesian Network Reasoning", current, -1, 0.0, {}, {}, SituationInstance::UNDETERMINED);
     }
     BNInferenceEngine engine;
-    engine.loadModel(workingGraph);
+    engine.convertGraphToBN(workingGraph);
+    if (logger) {
+        std::stringstream ss;
+        engine.printNetwork(ss);
+        ss.str("");  // Clear the stringstream
+        engine.printProbabilities(ss);
+    }
     engine.reason(workingGraph, instanceMap, current, logger);
-    // Fetch the bottom layer and trigger operational situations
+
+    // Randomly set bottom layer nodes to TRIGGERED state
+    static std::mt19937 gen(std::random_device{}());
+    static std::uniform_real_distribution<double> dis(0.0, 1.0);
+    
     for (auto bottom : bottoms) {
-        SituationInstance& instance = instanceMap[bottom];
-        if (instance.state == SituationInstance::TRIGGERED && instance.next_start == current) {
-            tOperational.insert(instance.id);
+        if (dis(gen) < 0.3) {  // 30% chance to trigger
+            SituationInstance& instance = instanceMap[bottom];
+            instance.state = SituationInstance::TRIGGERED;
+            instance.counter++;
+            instance.next_start = current;
+            tOperational.insert(instance.id);  // Add to operational set
+            
+            if (logger) {
+                logger->logStep("Random Bottom Layer Trigger", 
+                              current, 
+                              bottom, 
+                              instance.beliefValue, 
+                              convertMapValueToVector(instance.childrenBeliefs),
+                              convertMapValueToVector(instance.predecessorBeliefs),
+                              instance.state);
+            }
         }
     }
-
+    
     // Check and update state, reset transient situations
     checkState(current);
 

@@ -1,0 +1,78 @@
+{
+  "layers": [
+    [
+      {
+        "ID": 100,
+        "Predecessors": null,
+        "Children": [
+          {
+            "ID": 200,
+            "Weight-y": 0.98,
+            "Relation": 0
+          }
+        ],
+        "Duration": 1000,
+        "Cycle": 0,
+        "type": 0
+      }
+    ],
+    [
+      {
+        "ID": 200,
+        "Predecessors": null,
+        "Children": [
+          {
+            "ID": 301,
+            "Weight-y": 0.98,
+            "Relation": 2
+          },
+          {
+            "ID": 302,
+            "Weight-y": 0.98,
+            "Relation": 2
+          },
+          {
+            "ID": 303,
+            "Weight-y": 0.98,
+            "Relation": 2
+          }
+        ],
+        "Duration": 1000,
+        "Cycle": 0,
+        "type": 0
+      }
+    ],
+    [
+      {
+        "ID": 301,
+        "Predecessors": null,
+        "Children": null,
+        "Duration": 1000,
+        "Cycle": 0,
+        "type": 0
+      },
+      {
+        "ID": 302,
+        "Predecessors": [
+          {
+            "ID": 301,
+            "Weight-x": 0.98,
+            "Relation": 0
+          }
+        ],
+        "Children": null,
+        "Duration": 1000,
+        "Cycle": 0,
+        "type": 0
+      },
+      {
+        "ID": 303,
+        "Predecessors": null,
+        "Children": null,
+        "Duration": 1000,
+        "Cycle": 0,
+        "type": 0
+      }
+    ]
+  ]
+}

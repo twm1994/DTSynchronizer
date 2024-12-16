@@ -139,6 +139,10 @@ public:
                simtime_t current,
                std::shared_ptr<ReasonerLogger> logger = nullptr);
     void convertGraphToBN(const SituationGraph& sg);
+    
+    // Print functions
+    void printNetwork(std::ostream& out = std::cout) const;
+    void printProbabilities(std::ostream& out = std::cout) const;
 };
 
 #endif /* BNINFENGINE_H_ */

@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <dlib/bayes_utils.h>
 #include "SituationReasoner.h"
+#include <queue>
 
 using namespace dlib;
 using namespace dlib::bayes_node_utils;
@@ -551,28 +552,27 @@ bool BNInferenceEngine::isCollider(unsigned long node, const std::vector<unsigne
 std::vector<unsigned long> BNInferenceEngine::getDescendants(unsigned long node) const {
     std::vector<unsigned long> descendants;
     std::set<unsigned long> visited;
-    std::queue<unsigned long> queue;
+    ::std::queue<unsigned long> queue;  // Explicitly use global namespace std::queue
     
-    // Start with immediate children
+    // Start with all children of the node
     auto children = getChildren(node);
     for (auto child : children) {
         queue.push(child);
+        visited.insert(child);
+        descendants.push_back(child);
     }
     
     while (!queue.empty()) {
         unsigned long current = queue.front();
         queue.pop();
         
-        if (visited.find(current) != visited.end()) continue;
-        
-        visited.insert(current);
-        descendants.push_back(current);
-        
-        // Add children of current node
+        // Get children of current node
         children = getChildren(current);
         for (auto child : children) {
             if (visited.find(child) == visited.end()) {
                 queue.push(child);
+                visited.insert(child);
+                descendants.push_back(child);
             }
         }
     }

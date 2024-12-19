@@ -60,7 +60,7 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
             // Case 1: Base hypothesis (no evidence nodes)
             // Set belief to expert-defined measure
             if (evidenceNodes.empty()) {
-                hypothesisInstance.beliefValue = 0.8;  // Expert-defined measure
+                hypothesisInstance.updateBelief(0.8);  // Expert-defined measure = 0.8;
                 std::cout << "  Base Hypothesis " << nodeId << ": " << hypothesisInstance.beliefValue << "\n";
             }
             // Case 2: Single evidence with SOLE relation
@@ -77,7 +77,7 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
                 if (relation && relation->relation == SituationRelation::SOLE) {
                     SituationInstance& evidenceInstance = instanceMap[evidenceId];
                     std::cout << "  Evidence belief: " << evidenceInstance.beliefValue << "\n";
-                    hypothesisInstance.beliefValue = evidenceInstance.beliefValue * relation->weight;
+                    hypothesisInstance.updateBelief(evidenceInstance.beliefValue * relation->weight);
                     std::cout << "  Final belief: " << hypothesisInstance.beliefValue << "\n";
                 } else {
                     std::cout << "  Skipped: Relation is not SOLE\n";
@@ -112,7 +112,7 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
                             maxWeightedBelief = std::max(maxWeightedBelief, weightedBelief);
                         }
                     }
-                    hypothesisInstance.beliefValue = maxWeightedBelief;
+                    hypothesisInstance.updateBelief(maxWeightedBelief);
                     std::cout << "  Final belief for node " << nodeId << ": " << hypothesisInstance.beliefValue << "\n";
                 }
                 // Case 4: All AND relations
@@ -156,13 +156,27 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
                             break;
                         }
                     }
-                    hypothesisInstance.beliefValue = combinedBelief;
+                    hypothesisInstance.updateBelief(combinedBelief);
                     std::cout << "  Final belief for node " << nodeId << ": " << combinedBelief << "\n";
                 }
             }
             
             // Log belief update
             std::cout << "  Belief update for node " << nodeId << ": " << hypothesisInstance.beliefValue << "\n";
+            // Set node to TRIGGERED if belief > threshold, but skip for bottom layer
+            if (layer < numLayers - 1) {  // Only check threshold for non-bottom layers
+                if (hypothesisInstance.beliefValue > hypothesisNode.threshold) {
+                    std::cout << "  Belief > threshold, setting state to TRIGGERED\n";
+                    hypothesisInstance.state = SituationInstance::TRIGGERED;
+                    hypothesisInstance.addStateToBuffer(hypothesisInstance.state);
+                } else {
+                    std::cout << "  Belief <= threshold, setting state to UNTRIGGERED\n";
+                    hypothesisInstance.state = SituationInstance::UNTRIGGERED;
+                    hypothesisInstance.addStateToBuffer(hypothesisInstance.state);
+                }
+            } else {
+                std::cout << "  Bottom layer node, skipping threshold check\n";
+            }
         }
     }
 }
@@ -170,71 +184,8 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
 void SituationReasoner::backwardRetrospection(SituationGraph& graph) {
     int numLayers = graph.modelHeight();
     
-    // Process each layer from top to bottom
-    for (int layer = 0; layer < numLayers; layer++) {
-        DirectedGraph currentLayer = graph.getLayer(layer);
-        std::vector<long> nodes = currentLayer.topo_sort();
-        
-        std::cout << "\nProcessing Layer " << layer << ":\n";
-        
-        // First iteration: collect triggered situations in this layer
-        std::vector<long> triggeredEffects;
-        for (long nodeId : nodes) {
-            SituationInstance& instance = instanceMap[nodeId];
-            if (instance.state == SituationInstance::TRIGGERED) {
-                triggeredEffects.push_back(nodeId);
-                // Update state buffer with current state
-                instance.addStateToBuffer(instance.state);
-            } else {
-                instance.addStateToBuffer(SituationInstance::UNTRIGGERED);
-            }
-        }
-        
-        // Second and third iterations
-        while (!triggeredEffects.empty()) {
-            // Get and remove last triggered effect
-            long effectId = triggeredEffects.back();
-            triggeredEffects.pop_back();
-            
-            const SituationNode& effectNode = graph.getNode(effectId);
-            
-            // Second iteration: collect cause situations with horizontal relations
-            std::vector<long> causeSituations;
-            for (long causeId : effectNode.causes) {
-                const SituationRelation* relation = graph.getRelation(causeId, effectId);
-                if (relation && relation->type == SituationRelation::H) {
-                    causeSituations.push_back(causeId);
-                }
-            }
-            
-            // Third iteration: process cause situations
-            if (!causeSituations.empty()) {
-                for (long causeId : causeSituations) {
-                    SituationInstance& causeInstance = instanceMap[causeId];
-                    
-                    if (causeInstance.state == SituationInstance::UNTRIGGERED) {
-                        // Determine state based on effect node
-                        SituationInstance::State newState = determineCauseState(causeId, effectId, graph);
-                        causeInstance.addStateToBuffer(newState);
-                        
-                        if (newState == SituationInstance::TRIGGERED) {
-                            triggeredEffects.push_back(causeId);
-                        }
-                        
-                        std::cout << "  Cause situation " << causeId << " updated to " << newState << "\n";
-                    } else if (causeInstance.state == SituationInstance::TRIGGERED) {
-                        triggeredEffects.push_back(causeId);
-                    }
-                }
-            }
-            
-            std::cout << "  Effect situation " << effectId << " processed\n";
-        }
-    }
-}
-
-void SituationReasoner::downwardRetrospection(SituationGraph& graph) {
-    int numLayers = graph.modelHeight();
+    std::cout << "\nStarting Backward Retrospection\n";
+    std::cout << "============================\n";
     
     // Process each layer from top to bottom
     for (int layer = 0; layer < numLayers; layer++) {
@@ -242,53 +193,215 @@ void SituationReasoner::downwardRetrospection(SituationGraph& graph) {
         std::vector<long> nodes = currentLayer.topo_sort();
         
         std::cout << "\nProcessing Layer " << layer << ":\n";
+        std::cout << "-------------------\n";
+        std::cout << "Nodes in layer: ";
+        for (long id : nodes) std::cout << id << " ";
+        std::cout << "\n\n";
         
         // First iteration: collect triggered situations in this layer
-        std::vector<long> triggeredSituations;
-        for (long nodeId : nodes) {
+        std::cout << "1. Collecting triggered situations:\n";
+        std::deque<long> triggeredSituations;
+        
+        // Traverse nodes in reverse order since topo_sort puts causes before effects
+        for (auto it = nodes.rbegin(); it != nodes.rend(); ++it) {
+            long nodeId = *it;
             SituationInstance& instance = instanceMap[nodeId];
+            std::cout << "  Checking node " << nodeId << ": state=" << instance.state;
             if (instance.state == SituationInstance::TRIGGERED) {
+                std::cout << " (triggered)\n";
                 triggeredSituations.push_back(nodeId);
-                // Initialize state buffer with current state
+                // Update state buffer with current state
                 instance.addStateToBuffer(instance.state);
             } else {
                 instance.addStateToBuffer(SituationInstance::UNTRIGGERED);
             }
+            std::cout << "\n";
         }
         
+        std::cout << "\n2. Processing triggered situations:\n";
+        // Second and third iterations
+        while (!triggeredSituations.empty()) {
+            // Get and remove first triggered situation
+            long situationId = triggeredSituations.front();
+            triggeredSituations.pop_front();
+            
+            std::cout << "\n  Processing situation node " << situationId << ":\n";
+            const SituationNode& situationNode = graph.getNode(situationId);
+            
+            // Second iteration: collect cause situations with horizontal relations
+            std::cout << "    2.1 Collecting cause situations:\n";
+            std::vector<long> causeSituations;
+            for (long causeId : situationNode.causes) {
+                const SituationRelation* relation = graph.getRelation(causeId, situationId);
+                std::cout << "      Checking cause " << causeId << ": ";
+                if (relation && relation->type == SituationRelation::H) {
+                    std::cout << "horizontal relation found (weight=" << relation->weight << ")\n";
+                    causeSituations.push_back(causeId);
+                } else {
+                    std::cout << "no valid horizontal relation\n";
+                }
+            }
+            
+            // Third iteration: process cause situations
+            if (!causeSituations.empty()) {
+                std::cout << "    2.2 Processing causes:\n";
+                for (long causeId : causeSituations) {
+                    SituationInstance& causeInstance = instanceMap[causeId];
+                    std::cout << "      Cause " << causeId << ":\n";
+                    std::cout << "        Current state: " << causeInstance.state << "\n";
+                    
+                    if (causeInstance.state == SituationInstance::UNTRIGGERED) {
+                        // Determine state based on effect node
+                        SituationInstance::State newState = determineCauseState(causeId, situationId, graph);
+                        causeInstance.addStateToBuffer(newState);
+                        
+                        std::cout << "        New state: " << newState << "\n";
+                        if (newState == SituationInstance::TRIGGERED) {
+                            // Check if causeId is already in triggeredSituations
+                            if (std::find(triggeredSituations.begin(), triggeredSituations.end(), causeId) == triggeredSituations.end()) {
+                                triggeredSituations.push_back(causeId);
+                                std::cout << "        Added to triggered situations list\n";
+                            } else {
+                                std::cout << "        Already in triggered situations list\n";
+                            }
+                        }
+                        
+                        std::cout << "  Cause situation " << causeId << " updated to " << newState << "\n";
+                    } else if (causeInstance.state == SituationInstance::TRIGGERED) {
+                        // Check if causeId is already in triggeredSituations
+                        if (std::find(triggeredSituations.begin(), triggeredSituations.end(), causeId) == triggeredSituations.end()) {
+                            triggeredSituations.push_back(causeId);
+                            std::cout << "        Already triggered, added to situations list\n";
+                        } else {
+                            std::cout << "        Already triggered and in situations list\n";
+                        }
+                    } else {
+                        std::cout << "        No state change needed\n";
+                    }
+                }
+            } else {
+                std::cout << "    No valid causes to process\n";
+            }
+            
+            std::cout << "    Situation node " << situationId << " processing complete\n";
+            std::cout << "    Remaining situations to process: ";
+            for (long id : triggeredSituations) std::cout << id << " ";
+            std::cout << "\n";
+        }
+        
+        std::cout << "\nLayer " << layer << " processing complete\n";
+    }
+    
+    std::cout << "\nBackward Retrospection Complete\n";
+    std::cout << "============================\n";
+}
+
+void SituationReasoner::downwardRetrospection(SituationGraph& graph) {
+    int numLayers = graph.modelHeight();
+    
+    std::cout << "\nStarting Downward Retrospection" << std::endl;
+    std::cout << "=============================" << std::endl;
+    
+    // Process each layer from top to bottom
+    for (int layer = 0; layer < numLayers; layer++) {
+        DirectedGraph currentLayer = graph.getLayer(layer);
+        std::vector<long> nodes = currentLayer.topo_sort();
+        
+        std::cout << "\nProcessing Layer " << layer << ":" << std::endl;
+        std::cout << "-------------------" << std::endl;
+        std::cout << "Nodes in layer: ";
+        for (long id : nodes) std::cout << id << " ";
+        std::cout << "\n" << std::endl;
+        
+        // First iteration: collect triggered situations in this layer
+        std::cout << "1. Collecting triggered situations:" << std::endl;
+        std::deque<long> triggeredSituations;
+        for (long nodeId : nodes) {
+            SituationInstance& instance = instanceMap[nodeId];
+            std::cout << "  Checking node " << nodeId << ":" << std::endl;
+            std::cout << "    Current state: " << instance.state << std::endl;
+            std::cout << "    Belief value: " << instance.beliefValue << std::endl;
+            std::cout << "    Belief updated: " << (instance.beliefUpdated ? "true" : "false") << std::endl;
+            
+            if (instance.state == SituationInstance::TRIGGERED) {
+                triggeredSituations.push_back(nodeId);
+                instance.addStateToBuffer(instance.state);
+                std::cout << "    -> Added to triggered situations queue" << std::endl;
+            } else {
+                instance.addStateToBuffer(SituationInstance::UNTRIGGERED);
+                std::cout << "    -> Added UNTRIGGERED to state buffer" << std::endl;
+            }
+        }
+        
+        std::cout << "\n2. Processing triggered situations:" << std::endl;
         // Second and third iterations
         while (!triggeredSituations.empty()) {
             // Get and remove last triggered situation
             long parentId = triggeredSituations.back();
             triggeredSituations.pop_back();
             
+            std::cout << "\n  Processing parent node " << parentId << ":" << std::endl;
             const SituationNode& parentNode = graph.getNode(parentId);
             
             // Second iteration: collect child situations with vertical relations
+            std::cout << "    2.1 Collecting child situations with vertical relations:" << std::endl;
             std::vector<long> childSituations;
             for (long childId : parentNode.evidences) {
                 const SituationRelation* relation = graph.getRelation(parentId, childId);
+                std::cout << "      Checking child " << childId << ": ";
                 if (relation && relation->type == SituationRelation::V) {
                     childSituations.push_back(childId);
+                    std::cout << "vertical relation found (weight=" << relation->weight 
+                             << ", relation=" << (relation->relation == SituationRelation::AND ? "AND" : 
+                                                relation->relation == SituationRelation::OR ? "OR" : "SOLE")
+                             << ")" << std::endl;
+                } else {
+                    std::cout << "no valid vertical relation" << std::endl;
                 }
             }
             
             // Third iteration: process child situations
             if (!childSituations.empty()) {
+                std::cout << "\n    2.2 Processing child situations:" << std::endl;
                 for (long childId : childSituations) {
                     SituationInstance& childInstance = instanceMap[childId];
+                    std::cout << "      Child " << childId << ":" << std::endl;
+                    std::cout << "        Current state: " << childInstance.state << std::endl;
+                    std::cout << "        Current belief: " << childInstance.beliefValue << std::endl;
                     
                     // Determine state based on parent node
                     SituationInstance::State newState = determineChildState(parentId, childId, graph);
                     childInstance.addStateToBuffer(newState);
                     
-                    std::cout << "  Child situation " << childId << " updated to " << newState << "\n";
+                    std::cout << "        New state determined: " << newState << std::endl;
+                    std::cout << "        State buffer size: " << childInstance.stateBuffer.size() << std::endl;
+                    
+                    if (newState == SituationInstance::TRIGGERED) {
+                        // Check if childId is already in triggeredSituations
+                        bool alreadyInQueue = std::find(triggeredSituations.begin(), 
+                                                      triggeredSituations.end(), 
+                                                      childId) != triggeredSituations.end();
+                        
+                        if (!alreadyInQueue) {
+                            triggeredSituations.push_back(childId);
+                            std::cout << "        -> Added to triggered situations queue" << std::endl;
+                        } else {
+                            std::cout << "        -> Already in triggered situations queue" << std::endl;
+                        }
+                    }
                 }
+            } else {
+                std::cout << "    No child situations to process" << std::endl;
             }
             
-            std::cout << "  Parent situation " << parentId << " processed\n";
+            std::cout << "  Finished processing parent node " << parentId << std::endl;
         }
+        
+        std::cout << "\nCompleted processing layer " << layer << std::endl;
     }
+    
+    std::cout << "\nDownward Retrospection Complete" << std::endl;
+    std::cout << "=============================" << std::endl;
 }
 
 SituationInstance::State SituationReasoner::determineCauseState(long causeId, long effectId, SituationGraph& graph) {
@@ -448,32 +561,49 @@ std::vector<double> SituationReasoner::convertMapValueToVector(const std::map<lo
 
 SituationInstance::State SituationReasoner::combineStates(std::vector<SituationInstance::State>& stateBuffer) {
     if (stateBuffer.empty()) {
+        std::cout << "  No states in buffer, returning UNTRIGGERED\n";
         return SituationInstance::UNTRIGGERED;
     }
-    
+
+    std::cout << "  Combining states from buffer: ";
+    for (auto state : stateBuffer) {
+        std::cout << state << " ";
+    }
+    std::cout << "\n";
+
     // Take first element as initial temporary result
     SituationInstance::State tr = stateBuffer[0];
+    std::cout << "  Initial state from buffer[0]: " << tr << "\n";
     
     // Process all remaining states in buffer
     for (size_t i = 1; i < stateBuffer.size(); i++) {
         SituationInstance::State currentState = stateBuffer[i];
-        
+        std::cout << "  Processing state[" << i << "]: " << currentState << "\n";
+
         // Rule 1: If one is TRIGGERED, result is TRIGGERED
         if (tr == SituationInstance::TRIGGERED || currentState == SituationInstance::TRIGGERED) {
             tr = SituationInstance::TRIGGERED;
+            std::cout << "    Rule 1: One state is TRIGGERED -> Result = TRIGGERED\n";
         }
         // Rule 2: If both are UNDETERMINED, result is UNDETERMINED
         else if (tr == SituationInstance::UNDETERMINED && currentState == SituationInstance::UNDETERMINED) {
             tr = SituationInstance::UNDETERMINED;
+            std::cout << "    Rule 2: Both states UNDETERMINED -> Result = UNDETERMINED\n";
         }
         // Rule 3: If one is UNDETERMINED and other is UNTRIGGERED, result is UNTRIGGERED
         else if ((tr == SituationInstance::UNDETERMINED && currentState == SituationInstance::UNTRIGGERED) ||
                  (tr == SituationInstance::UNTRIGGERED && currentState == SituationInstance::UNDETERMINED)) {
             tr = SituationInstance::UNTRIGGERED;
+            std::cout << "    Rule 3: Mixed UNDETERMINED and UNTRIGGERED -> Result = UNTRIGGERED\n";
         }
         // Both UNTRIGGERED case - result stays UNTRIGGERED
+        else {
+            std::cout << "    Both states UNTRIGGERED -> Result stays UNTRIGGERED\n";
+        }
+        std::cout << "    Current combined result: " << tr << "\n";
     }
-    
+
+    std::cout << "  Final combined state: " << tr << "\n";
     return tr;
 }
 
@@ -505,23 +635,33 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
     }
 
     // Run belief propagation and retrospection
-    std::cout << "\nStart Belief Propagation:\n";
     beliefPropagation(workingGraph);
     printInstances("Belief Propagation");
     
-    std::cout << "\nStart Backward Retrospection:\n";
     backwardRetrospection(workingGraph);
     printInstances("Backward Retrospection");
     
-    std::cout << "\nStart Downward Retrospection:\n";
     downwardRetrospection(workingGraph);
     printInstances("Downward Retrospection");
 
+    // Combine states from buffer for each situation
+    std::cout << "\nStart State Combination:\n";
+    for (auto& [id, instance] : instanceMap) {
+        instance.state = combineStates(instance.stateBuffer);
+        // Clear buffer after combining
+        instance.stateBuffer.clear();
+    }
+    printInstances("State Combination");    
+
     // Update refinement with Bayesian Network reasoning
     std::cout << "\nStart Bayesian Network Reasoning:\n";
-    BNInferenceEngine engine;
-    engine.convertGraphToBN(workingGraph);
-    engine.reason(workingGraph, instanceMap, current, nullptr);
+    try {
+        BNInferenceEngine engine;
+        engine.reason(workingGraph, instanceMap, current, nullptr);
+    } catch (const std::exception& e) {
+        std::cerr << "Error in Bayesian Network reasoning: " << e.what() << std::endl;
+        throw;
+    }
 
     // Randomly set bottom layer nodes to TRIGGERED state
     static std::mt19937 gen(std::random_device{}());

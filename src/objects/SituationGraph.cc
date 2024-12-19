@@ -246,11 +246,7 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
                     eid.first = src;
                     eid.second = relation.dest;
                     relationMap[eid] = relation;
-                    edge_id reid;
-                    reid.first = relation.dest;
-                    reid.second = src;
                     edges.insert(eid);
-                    edges.insert(reid);
                 }
             }
 

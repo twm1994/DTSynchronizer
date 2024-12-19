@@ -25,7 +25,7 @@ Synchronizer::Synchronizer() {
     /*
      * Construct a situation graph and a situation inference engine
      */
-    sr.initModel("../files/SG_L3_N1_1_3_AND_1734084664.json");
+    sr.initModel("../files/SG_OR.json");
     sog.setModel(sr.getModel());
     sog.setModelInstance(&sr);
 

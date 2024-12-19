@@ -66,108 +66,106 @@ void BNInferenceEngine::loadModel(SituationGraph sg) {
 
 void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstance> &instanceMap, simtime_t current, std::shared_ptr<ReasonerLogger> logger) {
     _sg = sg;  // Update stored graph
+    _logger = logger;
     
-    // Step 1: Construct CPTs for all nodes
-    std::map<long, std::map<assignment, std::pair<double, double>>> cptMap;
-    for (const auto& [id, instance] : instanceMap) {
-        const SituationNode& node = sg.getNode(id);
-        constructCPT(node, instanceMap);
-        
-        // Store CPT for this node
-        const std::string nodeName = std::to_string(id);
-        if (_nodeMap.find(nodeName) != _nodeMap.end()) {
-            unsigned long nodeIdx = _nodeMap[nodeName];
-            std::map<assignment, std::pair<double, double>> nodeCPT;
-            
-            // Store all probability assignments for this node
-            assignment a = dlib::bayes_node_utils::node_first_parent_assignment(*_bn, nodeIdx);
-            do {
-                double p0 = dlib::bayes_node_utils::node_probability(*_bn, nodeIdx, 0, a);
-                double p1 = dlib::bayes_node_utils::node_probability(*_bn, nodeIdx, 1, a);
-                nodeCPT[a] = std::make_pair(p0, p1);
-            } while(dlib::bayes_node_utils::node_next_parent_assignment(*_bn, nodeIdx, a));
-            
-            cptMap[id] = nodeCPT;
-        }
-    }
+    std::cout << "\nInitializing Bayesian Network..." << std::endl;
     
-    // Step 2: Discover causal structure and create subgraph
-    auto [nodeSet, edgeSet] = findCausallyConnectedNodes(instanceMap);
-    
-    // Create new graph with only causally connected nodes
+    // Step 1: Discover causal structure and create subgraph
     SituationGraph causalGraph;
     std::map<long, SituationInstance> causalInstanceMap;
     
-    // Copy nodes to causal graph
-    nodeSet->reset();
-    while (nodeSet->move_next()) {
-        long nodeId = nodeSet->element();
-        const SituationNode& origNode = sg.getNode(nodeId);
-        causalGraph.situationMap[nodeId] = origNode;
-        causalInstanceMap[nodeId] = instanceMap[nodeId];
-    }
-    
-    // Build layers for causal graph (assuming same layer structure as original)
-    causalGraph.layers.clear();
-    for (int i = 0; i < sg.modelHeight(); i++) {
-        DirectedGraph origLayer = sg.getLayer(i);
-        DirectedGraph layer;  // Declare layer here to be used in the entire function
-        // Add vertices that exist in the causal subgraph
-        for (const auto& nodeId : origLayer.getVertices()) {
-            if (nodeSet->is_member(nodeId)) {
-                layer.add_vertex(nodeId);
-            }
+    auto [nodeSet, edgeSet] = findCausallyConnectedNodes(instanceMap);
+    if (!nodeSet || !edgeSet) {
+        std::cout << "No causally connected nodes found, using full graph..." << std::endl;
+        causalGraph = sg;
+        causalInstanceMap = instanceMap;
+    } else {
+        std::cout << "Found " << nodeSet->size() << " causally connected nodes and " 
+                  << edgeSet->size() << " edges" << std::endl;
+        
+        // Create new graph with only causally connected nodes
+        // Copy nodes to causal graph
+        nodeSet->reset();
+        while (nodeSet->move_next()) {
+            long nodeId = nodeSet->element();
+            const SituationNode& origNode = sg.getNode(nodeId);
+            causalGraph.situationMap[nodeId] = origNode;
+            causalInstanceMap[nodeId] = instanceMap[nodeId];
         }
         
-        // Add edges that exist in the causal subgraph
-        edgeSet->reset();
-        while (edgeSet->move_next()) {
-            auto edge = edgeSet->element();
-            const auto& vertices = origLayer.getVertices();
-            if (std::find(vertices.begin(), vertices.end(), edge.first) != vertices.end() &&
-                std::find(vertices.begin(), vertices.end(), edge.second) != vertices.end()) {
-                layer.add_vertex(edge.first);
-                layer.add_vertex(edge.second);
-                layer.add_edge(edge.first, edge.second);
+        // Build layers for causal graph (assuming same layer structure as original)
+        causalGraph.layers.clear();
+        for (int i = 0; i < sg.modelHeight(); i++) {
+            DirectedGraph origLayer = sg.getLayer(i);
+            DirectedGraph layer;
+            // Add vertices that exist in the causal subgraph
+            for (const auto& nodeId : origLayer.getVertices()) {
+                if (nodeSet->is_member(nodeId)) {
+                    layer.add_vertex(nodeId);
+                }
             }
+            
+            // Add edges that exist in the causal subgraph
+            edgeSet->reset();
+            while (edgeSet->move_next()) {
+                auto edge = edgeSet->element();
+                const auto& vertices = origLayer.getVertices();
+                if (std::find(vertices.begin(), vertices.end(), edge.first) != vertices.end() &&
+                    std::find(vertices.begin(), vertices.end(), edge.second) != vertices.end()) {
+                    layer.add_vertex(edge.first);
+                    layer.add_vertex(edge.second);
+                    layer.add_edge(edge.first, edge.second);
+                }
+            }
+            
+            causalGraph.layers.push_back(layer);
         }
-        
-        causalGraph.layers.push_back(layer);
     }
     
-    // Create new Bayesian network for causal subgraph
+    // Step 2: Create new Bayesian network for causal subgraph
+    std::cout << "Creating Bayesian Network structure..." << std::endl;
     _bn = std::make_unique<bn_type>();
     _nodeMap.clear();
     _joinTree.reset();
+    _solution.reset();
     
-    // Add nodes and restore their CPTs
+    // First add all nodes
     for (const auto& [id, instance] : causalInstanceMap) {
         addNode(std::to_string(id), causalGraph.getNode(id));
+    }
+    
+    // Then add all edges
+    for (const auto& [nodeId, node] : causalGraph.situationMap) {
+        // Add edges from causes
+        for (const auto& cause : node.causes) {
+            if (causalGraph.situationMap.find(cause) != causalGraph.situationMap.end()) {
+                const SituationRelation* relation = causalGraph.getRelation(cause, nodeId);
+                if (relation) {
+                    addEdge(std::to_string(cause), std::to_string(nodeId), relation->weight);
+                }
+            }
+        }
         
-        // Restore CPT from stored map
-        const std::string nodeName = std::to_string(id);
-        if (_nodeMap.find(nodeName) != _nodeMap.end() && cptMap.find(id) != cptMap.end()) {
-            unsigned long nodeIdx = _nodeMap[nodeName];
-            for (const auto& [a, probs] : cptMap[id]) {
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, probs.first);
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, probs.second);
+        // Add edges from evidences
+        for (const auto& evidence : node.evidences) {
+            if (causalGraph.situationMap.find(evidence) != causalGraph.situationMap.end()) {
+                const SituationRelation* relation = causalGraph.getRelation(nodeId, evidence);
+                if (relation) {
+                    addEdge(std::to_string(nodeId), std::to_string(evidence), relation->weight);
+                }
             }
         }
     }
     
-    // Add edges for causal subgraph
-    edgeSet->reset();
-    while (edgeSet->move_next()) {
-        auto edge = edgeSet->element();
-        const SituationRelation* relation = causalGraph.getRelation(edge.first, edge.second);
-        if (relation) {
-            addEdge(std::to_string(edge.first), std::to_string(edge.second), relation->weight);
-        }
+    // Step 3: Now that network structure is complete, construct CPTs
+    std::cout << "Constructing Conditional Probability Tables..." << std::endl;
+    for (const auto& [id, instance] : causalInstanceMap) {
+        const SituationNode& node = causalGraph.getNode(id);
+        constructCPT(node, causalInstanceMap);
     }
     
-    // Step 3: Calculate beliefs and update states for causal subgraph
-    if (logger) {
-        logger->logStep("BN Belief Calculation Start", 
+    if (_logger) {
+        _logger->logStep("BN Structure Created", 
                        current, 
                        -1, 
                        0.0, 
@@ -176,102 +174,39 @@ void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstan
                        SituationInstance::UNDETERMINED);
     }
 
-    // Create join tree for inference
-    _joinTree = std::make_unique<join_tree_type>();
-    
-    // Create moral graph first, then create join tree
-    create_moral_graph(*_bn, *_joinTree);
-    create_join_tree(*_joinTree, *_joinTree);
-    
-    if (logger) {
-        logger->logStep("BN Join Tree Created", 
-                       current, 
-                       -1, 
-                       0.0, 
-                       {}, 
-                       {}, 
-                       SituationInstance::UNDETERMINED);
-    }
-    
-    // Set evidence in Bayesian network based on instance states
-    for (const auto& [id, instance] : causalInstanceMap) {
-        const std::string nodeName = std::to_string(id);
-        if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
+    // Step 4: Build join tree and create solution
+    try {
+        std::cout << "Building join tree..." << std::endl;
+        buildJoinTree();
+        std::cout << "Join tree built successfully" << std::endl;
         
-        unsigned long nodeIdx = _nodeMap[nodeName];
-        if (instance.state == SituationInstance::TRIGGERED) {
-            set_node_value(*_bn, nodeIdx, 1);  // Set to true for triggered
-            if (logger) {
-                logger->logStep("BN Set Evidence", 
-                              current, 
-                              id, 
-                              1.0,  // Evidence value for triggered 
-                              {}, 
-                              {}, 
-                              instance.state);
-            }
-        } else if (instance.state == SituationInstance::UNTRIGGERED) {
-            set_node_value(*_bn, nodeIdx, 0);  // Set to false for untriggered
-            if (logger) {
-                logger->logStep("BN Set Evidence", 
-                              current, 
-                              id, 
-                              0.0,  // Evidence value for untriggered
-                              {}, 
-                              {}, 
-                              instance.state);
-            }
+        if (_logger) {
+            _logger->logStep("BN Join Tree Created", 
+                           current, 
+                           -1, 
+                           0.0, 
+                           {}, 
+                           {}, 
+                           SituationInstance::UNDETERMINED);
         }
-    }
-    
-    // Perform belief propagation using join tree algorithm
-    // Create a new solution with the current network state
-    _solution.reset(new dlib::bayesian_network_join_tree(*_bn, *_joinTree));
-    
-    // Update beliefs and states for each node
-    for (auto& [id, instance] : instanceMap) {
-        // Skip if not in Bayesian network
-        const std::string nodeName = std::to_string(id);
-        if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
         
-        unsigned long nodeIdx = _nodeMap[nodeName];
+        // Step 5: Calculate beliefs
+        std::cout << "Calculating beliefs..." << std::endl;
+        calculateBeliefs(instanceMap, current);
+        std::cout << "Beliefs calculated successfully" << std::endl;
         
-        // Only process UNDETERMINED nodes
-        if (instance.state == SituationInstance::UNDETERMINED) {
-            // Get marginal probability for this node being true
-            double beliefTrue = _solution->probability(nodeIdx)(1);
-            instance.beliefValue = beliefTrue;
-            
-            // Get the node's threshold from situation graph
-            const SituationNode& node = _sg.getNode(id);
-            
-            // Check if belief exceeds threshold and evidence counter condition is met
-            bool hasHigherCounterEvidence = false;
-            for (const auto& evidenceId : node.evidences) {
-                const auto& evidenceInstance = instanceMap[evidenceId];
-                if (instance.counter < evidenceInstance.counter) {
-                    hasHigherCounterEvidence = true;
-                    break;
-                }
-            }
-            
-            // Update state based on belief value and evidence counter condition
-            if (beliefTrue >= node.threshold && hasHigherCounterEvidence) {
-                instance.state = SituationInstance::TRIGGERED;
-                instance.counter++;
-                instance.next_start = current;
-            } else {
-                instance.state = SituationInstance::UNTRIGGERED;
-            }
+        if (_logger) {
+            _logger->logStep("BN Beliefs Calculated", 
+                           current, 
+                           -1, 
+                           0.0, 
+                           {}, 
+                           {}, 
+                           SituationInstance::UNDETERMINED);
         }
-    }
-    
-    // Step 4: Update original instanceMap with new beliefs and states
-    for (const auto& [id, instance] : causalInstanceMap) {
-        instanceMap[id].beliefValue = instance.beliefValue;
-        instanceMap[id].counter = instance.counter;
-        instanceMap[id].state = instance.state;
-        instanceMap[id].next_start = instance.next_start;
+    } catch (const std::exception& e) {
+        std::cerr << "Error during join tree creation or belief calculation: " << e.what() << std::endl;
+        throw;
     }
 }
 
@@ -283,11 +218,6 @@ void BNInferenceEngine::addNode(const std::string& nodeName, const SituationNode
         
         // Initialize node with binary values (0 = false, 1 = true)
         dlib::bayes_node_utils::set_node_num_values(*_bn, nodeIndex, 2);
-        
-        // Set initial probabilities for root nodes
-        assignment empty_assignment;
-        dlib::bayes_node_utils::set_node_probability(*_bn, nodeIndex, 0, empty_assignment, 0.5);  // P(node=false)
-        dlib::bayes_node_utils::set_node_probability(*_bn, nodeIndex, 1, empty_assignment, 0.5);  // P(node=true)
         
         std::cout << "    Successfully added node " << nodeName << " at index " << nodeIndex << std::endl;
     } catch (const std::exception& e) {
@@ -324,16 +254,18 @@ void BNInferenceEngine::addEdge(const std::string& parentName, const std::string
 void BNInferenceEngine::constructCPT(const SituationNode& node, const std::map<long, SituationInstance>& instanceMap) {
     std::vector<long> andNodes;
     std::vector<long> orNodes;
+    std::vector<std::pair<long, const SituationRelation*>> soleNodes;
     
-    // Step 1: Classify nodes into AND and OR relations
+    // Step 1: Classify nodes into AND, OR, and SOLE relations
     auto classifyNode = [&](long nodeId, const SituationRelation* relation) {
         if (relation) {
             if (relation->relation == SituationRelation::AND) {
                 andNodes.push_back(nodeId);
             } else if (relation->relation == SituationRelation::OR) {
                 orNodes.push_back(nodeId);
+            } else if (relation->relation == SituationRelation::SOLE) {
+                soleNodes.push_back({nodeId, relation});
             }
-            // SOLE relations will be handled in Case 2
         }
     };
     
@@ -354,282 +286,246 @@ void BNInferenceEngine::constructCPT(const SituationNode& node, const std::map<l
     if (_nodeMap.find(nodeName) == _nodeMap.end()) return;
     unsigned long nodeIdx = _nodeMap[nodeName];
     
-    // Case 1: No predecessors or children
-    if (andNodes.empty() && orNodes.empty()) {
+    // Case 1: No relations at all
+    if (andNodes.empty() && orNodes.empty() && soleNodes.empty()) {
         assignment empty_assignment;
-        dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, empty_assignment, 1.0);  // P(NOT A) = 1
-        dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, empty_assignment, 0.0);  // P(A) = 0
+        empty_assignment.clear();
+        // Node untriggered by default
+        dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, empty_assignment, 1.0);
+        dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, empty_assignment, 0.0);
         return;
     }
     
-    // Case 2: Single predecessor/child with SOLE relation
-    if (andNodes.empty() && orNodes.empty()) {
-        for (const auto& cause : node.causes) {
-            const SituationRelation* relation = _sg.getRelation(cause, node.id);
-            if (relation && relation->relation == SituationRelation::SOLE) {
-                std::string connectedName = std::to_string(cause);
-                if (_nodeMap.find(connectedName) == _nodeMap.end()) continue;
-                unsigned long connectedIdx = _nodeMap[connectedName];
-                double w = relation->weight;
-                
-                assignment a;
-                a.add(connectedIdx, 0);  // B = false
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0);    // P(NOT A|NOT B) = 1
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);    // P(A|NOT B) = 0
-                
-                a[connectedIdx] = 1;     // B = true
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0-w);  // P(NOT A|B) = 1-w
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, w);      // P(A|B) = w
-                return;
-            }
-        }
+    // Case 2: Single SOLE relation
+    if (andNodes.empty() && orNodes.empty() && soleNodes.size() == 1) {
+        auto [connectedId, relation] = soleNodes[0];
+        std::string connectedName = std::to_string(connectedId);
+        if (_nodeMap.find(connectedName) == _nodeMap.end()) return;
+        unsigned long connectedIdx = _nodeMap[connectedName];
+        double w = relation->weight;
         
-        for (const auto& evidence : node.evidences) {
-            const SituationRelation* relation = _sg.getRelation(node.id, evidence);
-            if (relation && relation->relation == SituationRelation::SOLE) {
-                // Similar to cause case but with evidence
-                std::string connectedName = std::to_string(evidence);
-                if (_nodeMap.find(connectedName) == _nodeMap.end()) continue;
-                unsigned long connectedIdx = _nodeMap[connectedName];
-                double w = relation->weight;
-                
-                assignment a;
-                a.add(connectedIdx, 0);
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0);
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);
-                
-                a[connectedIdx] = 1;
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0-w);
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, w);
-                return;
-            }
-        }
+        assignment a;
+        a.clear();
+        a.add(connectedIdx, 0);  // B = false
+        dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0);    // P(NOT A|NOT B) = 1
+        dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);    // P(A|NOT B) = 0
+        
+        a[connectedIdx] = 1;     // B = true
+        dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0-w);  // P(NOT A|B) = 1-w
+        dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, w);      // P(A|B) = w
+        return;
     }
     
     // Case 3: Only AND relations
-    if (!andNodes.empty() && orNodes.empty()) {
-        double w = 1.0;
-        for (const auto& andNode : andNodes) {
-            const SituationRelation* relation = _sg.getRelation(andNode, node.id);
-            if (!relation) continue;
-            
-            auto it = instanceMap.find(andNode);
-            if (it != instanceMap.end() && it->second.state == SituationInstance::TRIGGERED) {
-                w *= relation->weight;
-            }
-        }
+    if (!andNodes.empty() && orNodes.empty() && soleNodes.empty()) {
+        EV << "Starting AND case for node " << nodeIdx << endl;
         
-        // Set probabilities for all possible combinations
-        assignment a;
+        // First, make sure all parent nodes exist in the map
+        bool allParentsValid = true;
         for (const auto& andNode : andNodes) {
             std::string nodeName = std::to_string(andNode);
-            if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
+            if (_nodeMap.find(nodeName) == _nodeMap.end()) {
+                EV << "Warning: Parent node " << andNode << " not found in node map" << endl;
+                allParentsValid = false;
+                break;
+            }
             unsigned long idx = _nodeMap[nodeName];
-            a.add(idx, 0);  // Initialize all to false
+            EV << "Parent " << andNode << " maps to index " << idx << endl;
         }
         
+        if (!allParentsValid) {
+            EV << "Some parents are invalid, setting default probabilities" << endl;
+            assignment empty_assignment;
+            empty_assignment.clear();
+            dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, empty_assignment, 1.0);
+            dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, empty_assignment, 0.0);
+            return;
+        }
+        
+        assignment and_assignment;
+        and_assignment.clear();
+        
+        // Manually add all parents to the assignment
+        for (const auto& andNode : andNodes) {
+            std::string nodeName = std::to_string(andNode);
+            unsigned long idx = _nodeMap[nodeName];
+            EV << "Adding parent " << andNode << " (index " << idx << ") to assignment" << endl;
+            and_assignment.add(idx, 0);
+        }
+        
+        // Debug: Print number of parents
+        EV << "AND Node " << node.id << " has " << andNodes.size() << " parents" << endl;
+        EV << "Initial assignment size: " << and_assignment.size() << endl;
+        
         do {
-            bool allTrue = true;
+            std::vector<double> weights;
+            bool hasTriggeredParent = false;
+            bool allParentsTriggered = true;
+            
+            // Debug: Print current assignment
+            EV << "AND Assignment state: ";
             for (const auto& andNode : andNodes) {
                 std::string nodeName = std::to_string(andNode);
-                if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
                 unsigned long idx = _nodeMap[nodeName];
-                if (a[idx] == 0) {
-                    allTrue = false;
-                    break;
+                EV << "Parent " << andNode << "(idx=" << idx << ")=" << and_assignment[idx] << " ";
+            }
+            EV << endl;
+
+            // Check all parents and collect weights of triggered ones
+            for (const auto& andNode : andNodes) {
+                std::string nodeName = std::to_string(andNode);
+                unsigned long idx = _nodeMap[nodeName];
+                try {
+                    if (and_assignment[idx] == 1) {  // Parent is triggered
+                        hasTriggeredParent = true;
+                        const SituationRelation* relation = _sg.getRelation(andNode, node.id);
+                        if (relation) {
+                            weights.push_back(relation->weight);
+                        }
+                    } else {
+                        allParentsTriggered = false;  // Found an untriggered parent
+                    }
+                } catch (const std::exception& e) {
+                    EV << "Error accessing assignment for parent " << andNode << " (idx=" << idx << "): " << e.what() << endl;
+                    throw;
                 }
             }
             
-            if (allTrue) {
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0-w);  // P(NOT A|B) = 1-w
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, w);      // P(A|B) = w
-            } else {
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0);    // P(NOT A|NOT B) = 1
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);    // P(A|NOT B) = 0
+            try {
+                if (!hasTriggeredParent) {
+                    // No parents are triggered -> node is untriggered
+                    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, and_assignment, 1.0);
+                    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, and_assignment, 0.0);
+                    EV << "Setting AND prob for untriggered parents: P(0)=1.0, P(1)=0.0" << endl;
+                } else if (!allParentsTriggered) {
+                    // Some parents triggered but not all -> node is untriggered
+                    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, and_assignment, 1.0);
+                    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, and_assignment, 0.0);
+                    EV << "Setting AND prob for partially triggered: P(0)=1.0, P(1)=0.0" << endl;
+                } else {
+                    // All parents are triggered -> calculate probability
+                    double prob = 1.0;
+                    for (double w : weights) {
+                        prob *= w;
+                    }
+                    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, and_assignment, 1.0-prob);
+                    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, and_assignment, prob);
+                    EV << "Setting AND prob for all triggered: P(0)=" << 1.0-prob << ", P(1)=" << prob << endl;
+                }
+            } catch (const std::exception& e) {
+                EV << "Error setting probability: " << e.what() << endl;
+                throw;
             }
-        } while(dlib::bayes_node_utils::node_next_parent_assignment(*_bn, nodeIdx, a));
-        
+        } while(dlib::bayes_node_utils::node_next_parent_assignment(*_bn, nodeIdx, and_assignment));
         return;
     }
-    
+
     // Case 4: Only OR relations
-    if (andNodes.empty() && !orNodes.empty()) {
-        double w = 1.0;
-        for (const auto& orNode : orNodes) {
-            const SituationRelation* relation = _sg.getRelation(orNode, node.id);
-            if (!relation) continue;
-            
-            auto it = instanceMap.find(orNode);
-            if (it != instanceMap.end() && it->second.state == SituationInstance::TRIGGERED) {
-                w *= (1.0 - relation->weight);
-            }
-        }
+    if (andNodes.empty() && !orNodes.empty() && soleNodes.empty()) {
+        EV << "Starting OR case for node " << nodeIdx << endl;
         
-        // Set probabilities for all possible combinations
-        assignment a;
+        // First, make sure all parent nodes exist in the map
+        bool allParentsValid = true;
         for (const auto& orNode : orNodes) {
             std::string nodeName = std::to_string(orNode);
-            if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
+            if (_nodeMap.find(nodeName) == _nodeMap.end()) {
+                EV << "Warning: Parent node " << orNode << " not found in node map" << endl;
+                allParentsValid = false;
+                break;
+            }
             unsigned long idx = _nodeMap[nodeName];
-            a.add(idx, 0);  // Initialize all to false
+            EV << "Parent " << orNode << " maps to index " << idx << endl;
         }
         
+        if (!allParentsValid) {
+            EV << "Some parents are invalid, setting default probabilities" << endl;
+            assignment empty_assignment;
+            empty_assignment.clear();
+            dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, empty_assignment, 1.0);
+            dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, empty_assignment, 0.0);
+            return;
+        }
+        
+        assignment or_assignment;
+        or_assignment.clear();
+        
+        // Manually add all parents to the assignment
+        for (const auto& orNode : orNodes) {
+            std::string nodeName = std::to_string(orNode);
+            unsigned long idx = _nodeMap[nodeName];
+            EV << "Adding parent " << orNode << " (index " << idx << ") to assignment" << endl;
+            or_assignment.add(idx, 0);
+        }
+
+        // Debug: Print number of parents
+        EV << "OR Node " << node.id << " has " << orNodes.size() << " parents" << endl;
+        EV << "Initial assignment size: " << or_assignment.size() << endl;
+        
         do {
-            bool anyTrue = false;
+            std::vector<double> weights;
+            bool hasTriggeredParent = false;
+            
+            // Debug: Print current assignment
+            EV << "OR Assignment state: ";
             for (const auto& orNode : orNodes) {
                 std::string nodeName = std::to_string(orNode);
-                if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
                 unsigned long idx = _nodeMap[nodeName];
-                if (a[idx] == 1) {
-                    anyTrue = true;
-                    break;
+                EV << "Parent " << orNode << "(idx=" << idx << ")=" << or_assignment[idx] << " ";
+            }
+            EV << endl;
+
+            // Check all parents and collect weights of triggered ones
+            for (const auto& orNode : orNodes) {
+                std::string nodeName = std::to_string(orNode);
+                unsigned long idx = _nodeMap[nodeName];
+                try {
+                    if (or_assignment[idx] == 1) {  // Parent is triggered
+                        hasTriggeredParent = true;
+                        const SituationRelation* relation = _sg.getRelation(orNode, node.id);
+                        if (relation) {
+                            weights.push_back(relation->weight);
+                        }
+                    }
+                } catch (const std::exception& e) {
+                    EV << "Error accessing assignment for parent " << orNode << " (idx=" << idx << "): " << e.what() << endl;
+                    throw;
                 }
             }
             
-            if (anyTrue) {
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, w);      // P(NOT A|B) = w
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 1.0-w);  // P(A|B) = 1-w
-            } else {
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0);    // P(NOT A|NOT B) = 1
-                dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);    // P(A|NOT B) = 0
+            try {
+                if (!hasTriggeredParent) {
+                    // No parents are triggered -> node is untriggered
+                    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, or_assignment, 1.0);
+                    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, or_assignment, 0.0);
+                    EV << "Setting OR prob for untriggered: P(0)=1.0, P(1)=0.0" << endl;
+                } else {
+                    // At least one parent is triggered -> calculate probability
+                    double not_prob = 1.0;
+                    for (double w : weights) {
+                        not_prob *= (1.0 - w);
+                    }
+                    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, or_assignment, not_prob);
+                    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, or_assignment, 1.0-not_prob);
+                    EV << "Setting OR prob: P(0)=" << not_prob << ", P(1)=" << 1.0-not_prob << endl;
+                }
+            } catch (const std::exception& e) {
+                EV << "Error setting probability: " << e.what() << endl;
+                throw;
             }
-        } while(dlib::bayes_node_utils::node_next_parent_assignment(*_bn, nodeIdx, a));
-        
+        } while(dlib::bayes_node_utils::node_next_parent_assignment(*_bn, nodeIdx, or_assignment));
         return;
     }
     
-    // // Case 5: Mixed AND and OR relations
-    // if (!andNodes.empty() && !orNodes.empty()) {
-    //     // Create intermediary nodes s_u (AND) and s_v (OR)
-    //     unsigned long suIdx = _bn->add_node();
-    //     unsigned long svIdx = _bn->add_node();
-    //     dlib::bayes_node_utils::set_node_num_values(*_bn, suIdx, 2);
-    //     dlib::bayes_node_utils::set_node_num_values(*_bn, svIdx, 2);
-        
-    //     // Add edges from intermediary nodes to target node
-    //     _bn->add_edge(suIdx, nodeIdx);
-    //     _bn->add_edge(svIdx, nodeIdx);
-        
-    //     // Set CPT for target node A given s_u and s_v
-    //     assignment a;
-    //     a.add(suIdx, 0);
-    //     a.add(svIdx, 0);
-        
-    //     // P(A|s_u=0,s_v=0) = 0, P(NOT A|s_u=0,s_v=0) = 1
-    //     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0);
-    //     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);
-        
-    //     // P(A|s_u=0,s_v=1) = 0, P(NOT A|s_u=0,s_v=1) = 1
-    //     a[svIdx] = 1;
-    //     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0);
-    //     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);
-        
-    //     // P(A|s_u=1,s_v=0) = 0, P(NOT A|s_u=1,s_v=0) = 1
-    //     a[suIdx] = 1;
-    //     a[svIdx] = 0;
-    //     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0);
-    //     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);
-        
-    //     // P(A|s_u=1,s_v=1) = 1, P(NOT A|s_u=1,s_v=1) = 0
-    //     a[svIdx] = 1;
-    //     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 0.0);
-    //     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 1.0);
-        
-    //     // Recursively construct CPTs for s_u and s_v
-    //     // For s_u (AND node)
-    //     double w_u = 1.0;
-    //     for (const auto& andNode : andNodes) {
-    //         const SituationRelation* relation = _sg.getRelation(andNode, node.id);
-    //         if (!relation) continue;
-            
-    //         auto it = instanceMap.find(andNode);
-    //         if (it != instanceMap.end() && it->second.state == SituationInstance::TRIGGERED) {
-    //             w_u *= relation->weight;
-    //         }
-            
-    //         std::string nodeName = std::to_string(andNode);
-    //         if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
-    //         unsigned long idx = _nodeMap[nodeName];
-    //         _bn->add_edge(idx, suIdx);
-    //     }
-        
-    //     // For s_v (OR node)
-    //     double w_v = 1.0;
-    //     for (const auto& orNode : orNodes) {
-    //         const SituationRelation* relation = _sg.getRelation(orNode, node.id);
-    //         if (!relation) continue;
-            
-    //         auto it = instanceMap.find(orNode);
-    //         if (it != instanceMap.end() && it->second.state == SituationInstance::TRIGGERED) {
-    //             w_v *= (1.0 - relation->weight);
-    //         }
-            
-    //         std::string nodeName = std::to_string(orNode);
-    //         if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
-    //         unsigned long idx = _nodeMap[nodeName];
-    //         _bn->add_edge(idx, svIdx);
-    //     }
-        
-    //     // Set CPTs for s_u and s_v using Case 3 and Case 4 logic
-    //     // This is a simplified version
-    //     assignment au;
-    //     for (const auto& andNode : andNodes) {
-    //         std::string nodeName = std::to_string(andNode);
-    //         if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
-    //         unsigned long idx = _nodeMap[nodeName];
-    //         au.add(idx, 0);
-    //     }
-        
-    //     do {
-    //         bool allTrue = true;
-    //         for (const auto& andNode : andNodes) {
-    //             std::string nodeName = std::to_string(andNode);
-    //             if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
-    //             unsigned long idx = _nodeMap[nodeName];
-    //             if (au[idx] == 0) {
-    //                 allTrue = false;
-    //                 break;
-    //             }
-    //         }
-            
-    //         if (allTrue) {
-    //             dlib::bayes_node_utils::set_node_probability(*_bn, suIdx, 0, au, 1.0-w_u);
-    //             dlib::bayes_node_utils::set_node_probability(*_bn, suIdx, 1, au, w_u);
-    //         } else {
-    //             dlib::bayes_node_utils::set_node_probability(*_bn, suIdx, 0, au, 1.0);
-    //             dlib::bayes_node_utils::set_node_probability(*_bn, suIdx, 1, au, 0.0);
-    //         }
-    //     } while(dlib::bayes_node_utils::node_next_parent_assignment(*_bn, suIdx, au));
-        
-    //     assignment av;
-    //     for (const auto& orNode : orNodes) {
-    //         std::string nodeName = std::to_string(orNode);
-    //         if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
-    //         unsigned long idx = _nodeMap[nodeName];
-    //         av.add(idx, 0);
-    //     }
-        
-    //     do {
-    //         bool anyTrue = false;
-    //         for (const auto& orNode : orNodes) {
-    //             std::string nodeName = std::to_string(orNode);
-    //             if (_nodeMap.find(nodeName) == _nodeMap.end()) continue;
-    //             unsigned long idx = _nodeMap[nodeName];
-    //             if (av[idx] == 1) {
-    //                 anyTrue = true;
-    //                 break;
-    //             }
-    //         }
-            
-    //         if (anyTrue) {
-    //             dlib::bayes_node_utils::set_node_probability(*_bn, svIdx, 0, av, w_v);
-    //             dlib::bayes_node_utils::set_node_probability(*_bn, svIdx, 1, av, 1.0-w_v);
-    //         } else {
-    //             dlib::bayes_node_utils::set_node_probability(*_bn, svIdx, 0, av, 1.0);
-    //             dlib::bayes_node_utils::set_node_probability(*_bn, svIdx, 1, av, 0.0);
-    //         }
-    //     } while(dlib::bayes_node_utils::node_next_parent_assignment(*_bn, svIdx, av));
-    // }
+    // Case 5: Mixed relations - not supported yet
+    EV << "Warning: Mixed relations not supported for node " << node.id << endl;
+    EV << "AND nodes: " << andNodes.size() << ", OR nodes: " << orNodes.size() 
+       << ", SOLE nodes: " << soleNodes.size() << endl;
+       
+    // Set default probabilities
+    assignment empty_assignment;
+    empty_assignment.clear();
+    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, empty_assignment, 1.0);
+    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, empty_assignment, 0.0);
 }
 
 bool BNInferenceEngine::isCollider(unsigned long node, const std::vector<unsigned long>& path) const {
@@ -811,57 +707,91 @@ void BNInferenceEngine::calculateBeliefs(std::map<long, SituationInstance>& inst
 
 std::pair<std::unique_ptr<dlib::set<long>::kernel_1a>, std::unique_ptr<dlib::set<std::pair<long, long>>::kernel_1a>> 
 BNInferenceEngine::findCausallyConnectedNodes(const std::map<long, SituationInstance>& instanceMap) {
-    auto nodes = std::make_unique<dlib::set<long>::kernel_1a>();
-    auto edges = std::make_unique<dlib::set<std::pair<long, long>>::kernel_1a>();
-
-    for (const auto& [id, instance] : instanceMap) {
-        const SituationNode& node = _sg.getNode(id);
-        auto connectedNodes = findConnectedNodes(node);
-        
-        // Copy nodes using temporary non-const values
-        connectedNodes->reset();
-        while (connectedNodes->move_next()) {
-            long nodeId = connectedNodes->element();
-            long nodeIdCopy = nodeId;
-            nodes->add(nodeIdCopy);
-        }
-
-        // Create edges
-        for (const auto& cause : node.causes) {
-            std::pair<long, long> edge = std::make_pair(cause, id);
-            edges->add(edge);
+    std::cout << "Finding causally connected nodes..." << std::endl;
+    
+    auto nodeSet = std::make_unique<dlib::set<long>::kernel_1a>();
+    auto edgeSet = std::make_unique<dlib::set<std::pair<long, long>>::kernel_1a>();
+    
+    // First, find all triggered nodes and their neighbors
+    for (const auto& [nodeId, instance] : instanceMap) {
+        std::cout << "Checking node " << nodeId << " (state: " << instance.state << ")" << std::endl;
+        if (instance.state == SituationInstance::TRIGGERED) {
+            std::cout << "  Node " << nodeId << " is triggered" << std::endl;
+            auto connectedNodes = findConnectedNodes(_sg.getNode(nodeId));
+            if (connectedNodes) {
+                connectedNodes->reset();
+                while (connectedNodes->move_next()) {
+                    long connectedId = connectedNodes->element();
+                    nodeSet->add(connectedId);
+                    std::cout << "  Added connected node " << connectedId << std::endl;
+                }
+                long trigNodeId = nodeId;
+                nodeSet->add(trigNodeId);  // Add the triggered node itself
+            }
         }
     }
-
-    return {std::move(nodes), std::move(edges)};
+    
+    // Then find edges between these nodes
+    for (const auto& [nodeId, node] : _sg.situationMap) {
+        if (!nodeSet->is_member(nodeId)) continue;
+        
+        // Check causes
+        for (const auto& cause : node.causes) {
+            if (nodeSet->is_member(cause)) {
+                std::pair<long, long> edge(cause, nodeId);
+                edgeSet->add(edge);
+                std::cout << "Added edge: " << cause << " -> " << nodeId << std::endl;
+            }
+        }
+        
+        // Check evidences
+        for (const auto& evidence : node.evidences) {
+            if (nodeSet->is_member(evidence)) {
+                std::pair<long, long> edge(nodeId, evidence);
+                edgeSet->add(edge);
+                std::cout << "Added edge: " << nodeId << " -> " << evidence << std::endl;
+            }
+        }
+    }
+    
+    std::cout << "Found " << nodeSet->size() << " nodes and " << edgeSet->size() << " edges" << std::endl;
+    if (nodeSet->size() == 0) {
+        std::cout << "Warning: No triggered nodes found in the network" << std::endl;
+        return {nullptr, nullptr};
+    }
+    
+    return {std::move(nodeSet), std::move(edgeSet)};
 }
 
 std::unique_ptr<dlib::set<long>::kernel_1a> BNInferenceEngine::findConnectedNodes(const SituationNode& node) {
     auto connectedNodes = std::make_unique<dlib::set<long>::kernel_1a>();
     
-    // Get the node ID from the map
-    const std::string nodeName = std::to_string(node.id);
-    if (_nodeMap.find(nodeName) == _nodeMap.end()) {
-        return connectedNodes;
-    }
-    unsigned long nodeIdx = _nodeMap[nodeName];
+    std::cout << "Finding connected nodes for node " << node.id << std::endl;
     
-    // Create conditioning set from all nodes except the current node
-    std::set<unsigned long> conditioningSet;
-    for (const auto& [name, idx] : _nodeMap) {
-        if (idx != nodeIdx) {
-            conditioningSet.insert(idx);
+    // Add causes
+    for (const auto& cause : node.causes) {
+        long causeId = cause;  // Create a copy
+        connectedNodes->add(causeId);
+        std::cout << "  Added cause: " << causeId << std::endl;
+    }
+    
+    // Add evidences
+    for (const auto& evidence : node.evidences) {
+        long evidenceId = evidence;  // Create a copy
+        connectedNodes->add(evidenceId);
+        std::cout << "  Added evidence: " << evidenceId << std::endl;
+    }
+    
+    // Add effects (nodes where this node is a cause)
+    for (const auto& [id, otherNode] : _sg.situationMap) {
+        if (std::find(otherNode.causes.begin(), otherNode.causes.end(), node.id) != otherNode.causes.end()) {
+            long effectId = id;  // Create a copy
+            connectedNodes->add(effectId);
+            std::cout << "  Added effect: " << effectId << std::endl;
         }
     }
     
-    // Check d-connection with all other nodes
-    for (const auto& [name, idx] : _nodeMap) {
-        if (idx != nodeIdx && isDConnected(nodeIdx, idx, conditioningSet)) {
-            long nodeId = std::stol(name);
-            connectedNodes->add(nodeId);
-        }
-    }
-    
+    std::cout << "Found " << connectedNodes->size() << " connected nodes" << std::endl;
     return connectedNodes;
 }
 
@@ -902,18 +832,31 @@ std::vector<unsigned long> BNInferenceEngine::getChildren(unsigned long nodeIdx)
 }
 
 void BNInferenceEngine::buildJoinTree() {
+    // Verify we have a valid network
+    if (!_bn || _bn->number_of_nodes() == 0) {
+        throw std::runtime_error("Cannot build join tree: Network is empty or invalid");
+    }
+    
+    EV << "Building join tree for network with " << _bn->number_of_nodes() << " nodes" << endl;
+    
     // Create a new join tree
     _joinTree.reset(new join_tree_type());
+    EV << "Created new join tree" << endl;
     
     // Create moral graph and join tree using dlib's algorithms
-    create_moral_graph(*_bn, *_joinTree);
-    create_join_tree(*_joinTree, *_joinTree);
-    
-    // Create solution object for inference
     try {
+        EV << "Creating moral graph..." << endl;
+        create_moral_graph(*_bn, *_joinTree);
+        EV << "Creating join tree..." << endl;
+        create_join_tree(*_joinTree, *_joinTree);
+        EV << "Join tree created successfully" << endl;
+        
+        // Create solution object for inference
+        EV << "Creating solution object..." << endl;
         _solution.reset(new dlib::bayesian_network_join_tree(*_bn, *_joinTree));
+        EV << "Solution object created successfully" << endl;
     } catch (const std::exception& e) {
-        std::cerr << "Error creating join tree solution: " << e.what() << std::endl;
+        std::cerr << "Error during join tree creation: " << e.what() << std::endl;
         throw;
     }
 }
@@ -1051,6 +994,7 @@ void BNInferenceEngine::printProbabilities(std::ostream& out) const {
             
             // Create an assignment for parent states
             dlib::assignment parent_state;
+            parent_state.clear();
             for (unsigned long p = 0; p < _bn->node(i).number_of_parents(); ++p) {
                 parent_state.add(_bn->node(i).parent(p).index(), 0);
             }

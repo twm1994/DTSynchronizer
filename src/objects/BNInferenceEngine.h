@@ -75,6 +75,8 @@ private:
     // Solution object for inference
     std::unique_ptr<dlib::bayesian_network_join_tree> _solution;
     
+    std::shared_ptr<ReasonerLogger> _logger;
+    
     void addNode(const std::string& name, const SituationNode& node);
     void addEdge(const std::string& parentName, const std::string& childName, double weight);
     void buildJoinTree();

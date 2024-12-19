@@ -1,0 +1,206 @@
+{
+    "layers": [
+      [
+        {
+          "ID": 300,
+          "Predecessors": null,
+          "Children": [
+            {
+              "ID": 200,
+              "Weight-y": 0.98,
+              "Relation": 1
+            },
+            {
+                "ID": 201,
+                "Weight-y": 0.93,
+                "Relation": 1
+            },
+            {
+                "ID": 202,
+                "Weight-y": 0.9,
+                "Relation": 1
+            }                        
+          ],
+          "Duration": 3000,
+          "Cycle": 1500,
+          "type": 0
+        },
+        {
+          "ID": 301,
+          "Predecessors": null,
+          "Children": [
+              {
+              "ID": 203,
+              "Weight-y": 0.95,
+              "Relation": 0
+              }
+          ],
+          "Duration": 1500,
+          "Cycle": 2000,
+          "type": 0
+          }        
+      ],
+      [
+        {
+          "ID": 200,
+          "Predecessors": null,
+          "Children": [
+            {
+              "ID": 100,
+              "Weight-y": 0.7,
+              "Relation": 1
+            },
+            {
+              "ID": 101,
+              "Weight-y": 0.8,
+              "Relation": 1
+            }
+          ],
+          "Duration": 2000,
+          "Cycle": 2000,
+          "type": 0
+        },
+        {
+          "ID": 201,
+          "Predecessors": [
+            {
+              "ID": 200,
+              "Weight-x": 0.9,
+              "Relation": 0
+            }
+          ],
+          "Children": [
+            {
+              "ID": 102,
+              "Weight-y": 0.9,
+              "Relation": 0
+            }
+          ],
+          "Duration": 2000,
+          "Cycle": 500,
+          "type": 0
+        },
+        {
+          "ID": 202,
+          "Predecessors": [
+            {
+              "ID": 200,
+              "Weight-x": 0.96,
+              "Relation": 0
+            }
+          ],
+          "Children": null,
+          "Duration": 2000,
+          "Cycle": 2000,
+          "type": 0
+        },
+        {
+          "ID": 203,
+          "Predecessors": [
+            {
+              "ID": 202,
+              "Weight-x": 0.94,
+              "Relation": 0
+            }
+          ],
+          "Children": [
+            {
+              "ID": 105,
+              "Weight-y": 0.96,
+              "Relation": 1
+            },
+            {
+              "ID": 106,
+              "Weight-y": 0.85,
+              "Relation": 1
+            }
+          ],
+          "Duration": 1500,
+          "Cycle": 2000,
+          "type": 0
+        }        
+      ],
+      [
+        {
+          "ID": 100,
+          "Predecessors": null,
+          "Children": null,
+          "Duration": 1000,
+          "Cycle": 1000,
+          "type": 0
+        },        
+        {
+          "ID": 101,
+          "Predecessors": [
+            {
+              "ID": 100,
+              "Weight-x": 0.94,
+              "Relation": 0
+            }
+          ],
+          "Children": null,
+          "Duration": 1000,
+          "Cycle": 1000,
+          "type": 0
+        },
+        {
+          "ID": 102,
+          "Predecessors": null,
+          "Children": null,
+          "Duration": 1000,
+          "Cycle": 2000,
+          "type": 0
+        },
+        {
+          "ID": 103,
+          "Predecessors": null,
+          "Children": null,
+          "Duration": 1000,
+          "Cycle": 2000,
+          "type": 0
+        },
+        {
+          "ID": 104,
+          "Predecessors": [
+            {
+              "ID": 103,
+              "Weight-x": 0.88,
+              "Relation": 0
+            }
+          ],
+          "Children": null,
+          "Duration": 3000,
+          "Cycle": 3000,
+          "type": 0
+        },
+        {
+          "ID": 105,
+          "Predecessors": [
+            {
+              "ID": 104,
+              "Weight-x": 0.88,
+              "Relation": 0
+            }
+          ],
+          "Children": null,
+          "Duration": 1000,
+          "Cycle": 2000,
+          "type": 0
+        },
+        {
+          "ID": 106,
+          "Predecessors": [
+            {
+              "ID": 105,
+              "Weight-x": 0.87,
+              "Relation": 0
+            }
+          ],
+          "Children": null,
+          "Duration": 1000,
+          "Cycle": 2000,
+          "type": 0
+        }
+      ]
+    ]
+  }

@@ -16,6 +16,7 @@
 #include "SituationNode.h"
 #include "SituationInstance.h"
 #include "SituationRelation.h"
+#include "OperationalEvent.h"
 #include "../utils/ReasonerLogger.h"
 
 using namespace dlib;
@@ -83,40 +84,7 @@ private:
     void setNodeValue(const std::string& name, unsigned long value);
     void setNodeAsEvidence(const std::string& name);
     std::vector<double> getPosterior(const std::string& name);
-    std::vector<unsigned long> getParents(unsigned long nodeIdx) const;
-    std::vector<unsigned long> getChildren(unsigned long nodeIdx) const;
-    double normalizeWeight(double weight) const;
     bool areNodesConnected(unsigned long node1, unsigned long node2) const;
-    double calculateAndProbability(const SituationNode& node,
-                                 const std::vector<long>& nodes);
-    double calculateOrProbability(const SituationNode& node,
-                                const std::vector<long>& nodes);
-    void constructCPT(const SituationNode& node,
-                     const std::map<long, SituationInstance>& instanceMap);
-    bool determineNodeState(const SituationNode& node,
-                          SituationInstance& instance,
-                          const std::map<long, SituationInstance>& instanceMap);
-    std::unique_ptr<dlib::set<long>::kernel_1a> findConnectedNodes(const SituationNode& node);
-    /**
-     * Find causally connected nodes in the Bayesian network based on TRIGGERED states.
-     * This method identifies nodes that are causally connected through causes and evidences,
-     * and also discovers d-connections between nodes.
-     *
-     * @param instanceMap Map of situation instances
-     * @return A pair of sets: (nodes, edges) where nodes are causally connected nodes
-     *         and edges represent the causal connections between them
-     */
-    std::pair<std::unique_ptr<dlib::set<long>::kernel_1a>, std::unique_ptr<dlib::set<std::pair<long, long>>::kernel_1a>>
-    findCausallyConnectedNodes(const std::map<long, SituationInstance>& instanceMap);
-
-    /**
-     * Discover causal structure in the Bayesian network.
-     * @deprecated Use findCausallyConnectedNodes instead
-     */
-    std::pair<dlib::set<long>::kernel_1a, dlib::set<std::pair<long, long>>::kernel_1a>
-    discoverCausalStructure(const std::map<long, SituationInstance>& instanceMap);
-
-    void calculateBeliefs(std::map<long, SituationInstance>& instanceMap, simtime_t current);
 
     // Helper functions for d-separation
     bool isCollider(unsigned long node, const std::vector<unsigned long>& path) const;
@@ -129,7 +97,27 @@ private:
                         std::set<unsigned long>& visited) const;
     bool isDConnected(unsigned long start, unsigned long end,
                      const std::set<unsigned long>& conditioningSet) const;
+
+protected:
+    std::vector<unsigned long> getParents(unsigned long nodeIdx) const;
+    std::vector<unsigned long> getChildren(unsigned long nodeIdx) const;
+    double normalizeWeight(double weight) const;
+    double calculateAndProbability(const SituationNode& node,
+                                 const std::vector<long>& nodes);
+    double calculateOrProbability(const SituationNode& node,
+                                const std::vector<long>& nodes);
+    bool determineNodeState(const SituationNode& node,
+                          SituationInstance& instance,
+                          const std::map<long, SituationInstance>& instanceMap);
+    std::unique_ptr<dlib::set<long>::kernel_1a> findConnectedNodes(const SituationNode& node);
+    std::pair<std::unique_ptr<dlib::set<long>::kernel_1a>, std::unique_ptr<dlib::set<std::pair<long, long>>::kernel_1a>>
+    findCausallyConnectedNodes(const std::map<long, SituationInstance>& instanceMap);
+    std::pair<dlib::set<long>::kernel_1a, dlib::set<std::pair<long, long>>::kernel_1a>
+    discoverCausalStructure(const std::map<long, SituationInstance>& instanceMap);
+    void calculateBeliefs(std::map<long, SituationInstance>& instanceMap, simtime_t current);
     std::vector<unsigned long> getDescendants(unsigned long node) const;
+    virtual void constructCPT(const SituationNode& node,
+                     const std::map<long, SituationInstance>& instanceMap);
 
 public:
     BNInferenceEngine();

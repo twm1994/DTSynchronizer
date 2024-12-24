@@ -17,9 +17,7 @@
 #include <algorithm>
 #include "DirectedGraph.h"
 
-DirectedGraph::DirectedGraph() {
-    // TODO Auto-generated constructor stub
-}
+DirectedGraph::DirectedGraph() {}
 
 void DirectedGraph::add_vertex(long vertex) {
     verList.insert(vertex);

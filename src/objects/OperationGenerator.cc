@@ -146,7 +146,5 @@ queue<vector<VirtualOperation>> OperationGenerator::generateOperations(set<long>
     return opSets;
 }
 
-OperationGenerator::~OperationGenerator() {
-    // TODO Auto-generated destructor stub
-}
+OperationGenerator::~OperationGenerator() {}
 

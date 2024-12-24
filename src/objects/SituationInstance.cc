@@ -17,6 +17,4 @@
 
 // Implementation moved to header file
 
-SituationInstance::~SituationInstance() {
-    // TODO Auto-generated destructor stub
-}
+SituationInstance::~SituationInstance() {}

@@ -26,9 +26,6 @@
 using namespace omnetpp;
 using namespace std;
 
-/**
- * TODO - Generated class
- */
 class Synchronizer: public cSimpleModule {
 private:
     // cycle to check durable situations

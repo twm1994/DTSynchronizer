@@ -20,7 +20,5 @@ Operation::Operation() {
     timestamp = 0;
 }
 
-Operation::~Operation() {
-    // TODO Auto-generated destructor stub
-}
+Operation::~Operation() {}
 

@@ -12,7 +12,5 @@ SituationNode::SituationNode() {
     threshold = 0.82;
 }
 
-SituationNode::~SituationNode() {
-    // TODO Auto-generated destructor stub
-}
+SituationNode::~SituationNode() {}
 

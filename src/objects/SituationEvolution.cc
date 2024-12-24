@@ -19,9 +19,7 @@ SituationEvolution::SituationEvolution() {
 
 }
 
-SituationEvolution::~SituationEvolution() {
-    // TODO Auto-generated destructor stub
-}
+SituationEvolution::~SituationEvolution() {}
 
 void SituationEvolution::initModel(const char *model_path) {
     sg.loadModel(model_path, this);

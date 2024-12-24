@@ -21,6 +21,7 @@
 #include <vector>
 #include <utility>
 #include <iostream> // Added for std::ostream
+#include <memory> // Added for std::unique_ptr
 // Boost includes
 #include <boost/tuple/tuple.hpp>
 #include <boost/tuple/tuple_comparison.hpp>
@@ -39,7 +40,7 @@ class SituationEvolution;
 class SituationGraph {
 private:
     // Reachability index
-    vector<vector<bool>> *ri;
+    vector<vector<bool>>* ri;
 public:
     map<long, SituationNode> situationMap;
     typedef pair<long, long> edge_id;
@@ -50,6 +51,10 @@ private:
 
 public:
     SituationGraph();
+    SituationGraph(const SituationGraph& other);
+    SituationGraph& operator=(const SituationGraph& other);
+    SituationGraph(SituationGraph&&) = default;
+    SituationGraph& operator=(SituationGraph&&) = default;
     vector<long> getAllOperationalSitutions();
     vector<long> getOperationalSitutions(long topNodeId);
     bool isReachable(long src, long dest);
@@ -59,10 +64,6 @@ public:
     SituationNode getNode(long id) const;
     const SituationRelation* getRelation(long src, long dest) const;
     const std::map<long, SituationRelation>& getOutgoingRelations(long nodeId) const;
-    // void loadModel(const std::string &filename, SituationEvolution* arrangeer);
-    // DirectedGraph getLayer (int index);
-    // int modelHeight();
-    // SituationNode getNode(long id);
     int numOfNodes() const;
     void print(std::ostream& os = std::cout);
     virtual ~SituationGraph();

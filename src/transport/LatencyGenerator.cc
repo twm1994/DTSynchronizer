@@ -15,10 +15,7 @@
 
 #include "LatencyGenerator.h"
 
-LatencyGenerator::LatencyGenerator() {
-    // TODO Auto-generated constructor stub
-
-}
+LatencyGenerator::LatencyGenerator() {}
 
 simtime_t LatencyGenerator::generator_latency(){
     // assume minimum latency is 50 ms
@@ -38,7 +35,5 @@ simtime_t LatencyGenerator::generator_latency(){
     return delay;
 }
 
-LatencyGenerator::~LatencyGenerator() {
-    // TODO Auto-generated destructor stub
-}
+LatencyGenerator::~LatencyGenerator() {}
 

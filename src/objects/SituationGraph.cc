@@ -17,6 +17,7 @@
 
 // Standard library includes
 #include <stack>
+#include <memory>
 
 // OMNeT++ includes
 #include <omnetpp.h>
@@ -34,8 +35,30 @@
 
 namespace pt = boost::property_tree;
 
-SituationGraph::SituationGraph() {
-    // TODO Auto-generated constructor stub
+SituationGraph::SituationGraph() : ri(nullptr) {}
+
+SituationGraph::SituationGraph(const SituationGraph& other) : 
+    situationMap(other.situationMap),
+    relationMap(other.relationMap),
+    layers(other.layers),
+    ri(nullptr) {
+    if (other.ri != nullptr) {
+        ri = new vector<vector<bool>>(*other.ri);
+    }
+}
+
+SituationGraph& SituationGraph::operator=(const SituationGraph& other) {
+    if (this != &other) {
+        situationMap = other.situationMap;
+        relationMap = other.relationMap;
+        layers = other.layers;
+        delete ri;
+        ri = nullptr;
+        if (other.ri != nullptr) {
+            ri = new vector<vector<bool>>(*other.ri);
+        }
+    }
+    return *this;
 }
 
 vector<long> SituationGraph::getAllOperationalSitutions() {
@@ -74,7 +97,7 @@ vector<long> SituationGraph::getOperationalSitutions(long topNodeId) {
 bool SituationGraph::isReachable(long src, long dest){
     int i = situationMap[src].index;
     int j = situationMap[dest].index;
-    return ri->at(i)[j];
+    return (*ri)[i][j];
 }
 
 /*
@@ -117,39 +140,32 @@ void boolMatrixAdd(vector<vector<bool>>* result, vector<vector<bool>> &mat1,
 }
 
 void SituationGraph::buildReachabilityMatrix(set<long>& vertices, set<edge_id>& edges) {
-    /*
-     * initialize reachability matrix
-     */
-    int size = vertices.size();
-    ri = new vector<vector<bool>>(size, vector<bool>(size, false));
+    int n = vertices.size();
+    delete ri;
+    ri = new vector<vector<bool>>(n, vector<bool>(n, false));
 
-    /*
-     * build adjacency matrix
-     */
-    vector<vector<bool>> adjMatrix(size, vector<bool>(size, false));
-    for (auto src : vertices) {
-        for (auto dest : vertices) {
-            if (src != dest) {
-                edge_id eid;
-                eid.first = src;
-                eid.second = dest;
-                if (edges.count(eid)) {
-                    int i = situationMap[src].index;
-                    int j = situationMap[dest].index;
-                    adjMatrix[i][j] = true;
-                }
-            }
-        }
+    // Map node IDs to matrix indices
+    map<long, int> idToIndex;
+    int index = 0;
+    for (long v : vertices) {
+        idToIndex[v] = index++;
     }
 
-    /*
-     * build reachability matrix
-     */
-    for (int i = 1; i <= size; i++) {
-        vector<vector<bool>> adjMatrixPow = boolMatrixPower(adjMatrix, i);
-        vector<vector<bool>> temp = *ri;
-        boolMatrixAdd(ri, temp, adjMatrixPow);
+    // Fill in the adjacency matrix
+    for (const edge_id& e : edges) {
+        long src = std::get<0>(e);
+        long dest = std::get<1>(e);
+        (*ri)[idToIndex[src]][idToIndex[dest]] = true;
+    }
 
+    // Calculate transitive closure using Warshall's algorithm
+    for (int k = 0; k < n; k++) {
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                (*ri)[i][j] = (*ri)[i][j]
+                        || ((*ri)[i][k] && (*ri)[k][j]);
+            }
+        }
     }
 }
 
@@ -338,6 +354,5 @@ void SituationGraph::print(std::ostream& os) {
 }
 
 SituationGraph::~SituationGraph() {
-    // TODO why cannot release pointer here?
-//    delete ri;
+    delete ri;
 }

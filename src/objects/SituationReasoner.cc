@@ -663,22 +663,12 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
         throw;
     }
 
-    // Randomly set bottom layer nodes to TRIGGERED state
-    static std::mt19937 gen(std::random_device{}());
-    static std::uniform_real_distribution<double> dis(0.0, 1.0);
-    
+    // Get operational situations to return
     for (auto bottom : bottoms) {
-        if (dis(gen) < 0.3) {  // 30% chance to trigger
-            SituationInstance& instance = instanceMap[bottom];
-            instance.state = SituationInstance::TRIGGERED;
-            instance.counter++;
-            instance.next_start = current;
-            tOperational.insert(instance.id);  // Add to operational set
-            
-            std::cout << "  Random Bottom Layer Trigger " << bottom << ":\n";
-            std::cout << "    State: " << instance.state << "\n";
-            std::cout << "    Counter: " << instance.counter << "\n";
-            std::cout << "    Next start: " << instance.next_start << "\n";
+        SituationInstance &instance = instanceMap[bottom];
+        if (instance.state == SituationInstance::TRIGGERED
+                && instance.next_start == current) {
+            tOperational.insert(instance.id);
         }
     }
     
@@ -692,6 +682,7 @@ void SituationReasoner::checkState(simtime_t current) {
     for (auto si : instanceMap) {
         if (si.second.next_start + si.second.duration <= current) {
             si.second.state = SituationInstance::UNTRIGGERED;
+            std::cout << "reset node " << si.first << endl;
         }
     }
 }

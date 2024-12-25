@@ -62,9 +62,32 @@ queue<vector<VirtualOperation>> OperationGenerator::generateOperations(set<long>
         eventQueues[a].erase(eventQueues[a].begin());
     }
 
-    /*
-     * TODO use cycleTriggered to generate events for sync failure, and add them to mergedEvents
-     */
+    // Generate sync failure events for cycleTriggered situations
+    for (long situationId : cycleTriggered) {
+        SituationInstance& instance = se->getInstance(situationId);
+        
+        // If the situation has a cycle time and is in TRIGGERED state
+        if (instance.cycle > 0 && instance.state == SituationInstance::TRIGGERED) {
+            // Calculate when the next trigger should have happened
+            simtime_t expectedTrigger = instance.next_start;
+            
+            // If we've missed the trigger time, create a sync failure event
+            if (expectedTrigger < simTime()) {
+                OperationalEvent failureEvent;
+                failureEvent.id = situationId;
+                failureEvent.toTrigger = false;  // Indicate sync failure
+                failureEvent.timestamp = simTime();
+                // Add to merged events
+                mergedEvents[situationId] = failureEvent;
+                
+                // Update the next expected trigger time
+                instance.next_start = simTime() + instance.cycle;
+                
+                EV_INFO << "Generated sync failure event for situation " << situationId 
+                       << " at time " << simTime() << endl;
+            }
+        }
+    }
 
     /*
      * Event sort
@@ -147,4 +170,3 @@ queue<vector<VirtualOperation>> OperationGenerator::generateOperations(set<long>
 }
 
 OperationGenerator::~OperationGenerator() {}
-

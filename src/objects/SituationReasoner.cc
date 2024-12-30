@@ -657,6 +657,7 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
     std::cout << "\nStart Bayesian Network Reasoning:\n";
     try {
         BNInferenceEngine engine;
+        engine.loadModel(workingGraph, instanceMap);
         engine.reason(workingGraph, instanceMap, current, nullptr);
     } catch (const std::exception& e) {
         std::cerr << "Error in Bayesian Network reasoning: " << e.what() << std::endl;

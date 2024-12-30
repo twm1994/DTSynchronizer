@@ -20,7 +20,11 @@
 Define_Module(Simulator);
 
 void Simulator::initialize() {
-    // TODO - Generated method body
+    SimulatedOperations.setName("Simulated Operations");
+}
+
+void Simulator::finish() {
+    recordScalar("Simulated Operations", toltalOperations);
 }
 
 void Simulator::handleMessage(cMessage *msg) {
@@ -30,6 +34,8 @@ void Simulator::handleMessage(cMessage *msg) {
         cout << "Simulation event (" << event->getEventID() << "): timestamp "
                 << event->getTimestamp() << " count " << event->getCount()
                 << endl;
+
+        toltalOperations++;
 
         // delete the received msg
         delete event;

@@ -25,6 +25,9 @@
 Define_Module(EventSource);
 
 EventSource::EventSource(){
+    MAX_COUNT = 4;
+    toltalOperations = 0;
+    toltalSituations = 0;    
     /*
      * Construct a situation graph and its instance
      */
@@ -45,28 +48,55 @@ EventSource::~EventSource(){
 }
 
 void EventSource::initialize() {
-
+    generatedOperations.setName("Actual Generated Operations");
+    generatedSituations.setName("Actual Generated Situations");
     // schedule IoT event generation
     scheduleAt(min_event_cycle, EGTimeout);
 }
 
+void EventSource::finish() {
+    recordScalar("Actual Operations", toltalOperations);
+    recordScalar("Actual Situations", toltalSituations);
+    int consistency = sa.numOfConsistentOperation();
+    recordScalar("Actual Consistent Operations", consistency);
+}
+
 void EventSource::handleMessage(cMessage *msg) {
     if (msg->isName(msg::EG_TIMEOUT)) {
-
-        vector<PhysicalOperation> operations = sa.arrange(simTime());
+        simtime_t current = simTime();
+        vector<PhysicalOperation> operations = sa.arrange(MAX_COUNT, current);
+        int operationCount = operations.size();
+        int situationCount = 0;
         for(auto operation : operations){
             IoTEvent* event = new IoTEvent(msg::IOT_EVENT);
 
             event->setEventID(operation.id);
             event->setToTrigger(operation.toTrigger);
             event->setTimestamp(operation.timestamp);
+            event->setType(operation.type);
+            event->setCounter(operation.counter);
+            // TODO: a cause can be an implicit cause, i.e., implied from higher-layer situation relation; Also, OR relation needs to be considered
+            vector<long> causes = sa.getModel().getNode(operation.id).causes;
+            map<long, int> causeCounts;
+            for(auto cause : causes){
+                causeCounts[cause] = sa.getInstance(cause).counter;
+            }
+            json j_causeCounts(causeCounts);
+            event->setCauseCounts(j_causeCounts.dump().c_str());
 
             simtime_t latency = lg.generator_latency();
             // send out the message
             sendDelayed(event, latency, "out");
 
+            if(operation.toTrigger){
+                situationCount++;
+            }
         }
 
+        generatedOperations.record(operationCount);
+        generatedSituations.record(situationCount);
+        toltalOperations += operationCount;
+        toltalSituations += situationCount;
         scheduleAt(simTime() + min_event_cycle, EGTimeout);
     }
 }

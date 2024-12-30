@@ -16,11 +16,17 @@
 #ifndef OBJECTS_PHYSICALOPERATION_H_
 #define OBJECTS_PHYSICALOPERATION_H_
 
+#include "map"
 #include "Operation.h"
+#include "SituationInstance.h"
 
 class PhysicalOperation: public Operation {
 public:
     bool toTrigger;
+    int counter;
+    // <cause_id, cause count>
+    std::map<long, int> causeCounts;
+    SituationInstance::Type type;    
 protected:
     // print has to be a constant method, as the caller is a constant
     void print(ostream &os) const {

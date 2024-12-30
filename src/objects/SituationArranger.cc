@@ -20,7 +20,8 @@
 SituationArranger::SituationArranger() : SituationEvolution() {
 }
 
-vector<PhysicalOperation> SituationArranger::arrange(simtime_t current) {
+vector<PhysicalOperation> SituationArranger::arrange(int max_count, simtime_t current) {
+    set<long> causes;
 
     cout << endl << "current time in Arranger: " << current << endl;
 
@@ -36,21 +37,24 @@ vector<PhysicalOperation> SituationArranger::arrange(simtime_t current) {
     for (auto node : topNodes) {
         SituationNode s = sg.getNode(node);
         SituationInstance &si = instanceMap[node];
-        if (s.causes.empty()) {
-            triggerables.insert(si.id);
-        } else {
-            bool toTrigger = true;
-            for (auto cause : s.causes) {
-                SituationInstance cs = instanceMap[cause];
-                if (cs.counter <= si.counter) {
-                    toTrigger = false;
-                    break;
+        if(si.counter < max_count){
+            if (s.causes.empty()) {
+                triggerables.insert(si.id);
+            } else {
+                // a top-layer situation is to be triggered only if its trigger count is less than all causes
+                bool toTrigger = true;
+                for (auto cause : s.causes) {
+                    SituationInstance cs = instanceMap[cause];
+                    if (cs.counter <= si.counter) {
+                        toTrigger = false;
+                        break;
+                    }
+                }
+                if (toTrigger) {
+                    triggerables.insert(si.id);
                 }
             }
-            if (toTrigger) {
-                triggerables.insert(si.id);
-            }
-        }
+        }    
     }
 
     /*
@@ -142,10 +146,14 @@ vector<PhysicalOperation> SituationArranger::arrange(simtime_t current) {
                     s.toTrigger = true;
                 }
             }
-            if(bi.type != SituationInstance::HIDDEN){
-                // only send observable operations
-                operations.push_back(s);
-            }
+
+            s.counter = bi.counter;
+            s.type = bi.type;
+            // here, hidden situation are also transmitted, but not triggered, for result analysis
+//            if(bi.type != SituationInstance::HIDDEN){
+            // only send observable operations
+            operations.push_back(s);
+//            }
         } else {
             bi.state = SituationInstance::UNTRIGGERED;
         }

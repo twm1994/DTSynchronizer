@@ -28,6 +28,9 @@ class IoTEvent;
  *     long eventID;
  *     bool toTrigger;
  *     simtime_t timestamp;
+ *     int counter;
+ *     string causeCounts;
+ *     short type;
  * }
  * </pre>
  */
@@ -37,6 +40,9 @@ class IoTEvent : public ::omnetpp::cPacket
     long eventID = 0;
     bool toTrigger = false;
     omnetpp::simtime_t timestamp = SIMTIME_ZERO;
+    int counter = 0;
+    omnetpp::opp_string causeCounts;
+    short type = 0;
 
   private:
     void copy(const IoTEvent& other);
@@ -61,6 +67,15 @@ class IoTEvent : public ::omnetpp::cPacket
 
     virtual omnetpp::simtime_t getTimestamp() const;
     virtual void setTimestamp(omnetpp::simtime_t timestamp);
+
+    virtual int getCounter() const;
+    virtual void setCounter(int counter);
+
+    virtual const char * getCauseCounts() const;
+    virtual void setCauseCounts(const char * causeCounts);
+
+    virtual short getType() const;
+    virtual void setType(short type);
 };
 
 inline void doParsimPacking(omnetpp::cCommBuffer *b, const IoTEvent& obj) {obj.parsimPack(b);}

@@ -20,4 +20,7 @@ packet IoTEvent {
     long eventID;
     bool toTrigger;
 	simtime_t timestamp;
+	int counter;
+	string causeCounts;
+	short type;	    
 }

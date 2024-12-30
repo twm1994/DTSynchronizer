@@ -38,6 +38,8 @@ public:
     void addInstance(long id, SituationInstance::Type type =
             SituationInstance::NORMAL, simtime_t duration = 0, simtime_t cycle =
             0);
+    // An consistent operation is a triggered operation one that its cause has already been triggered
+    int numOfConsistentOperation();            
     SituationInstance& getInstance(long id);
     SituationGraph& getModel();
     void print();

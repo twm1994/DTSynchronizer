@@ -28,48 +28,9 @@ BNInferenceEngine::BNInferenceEngine() : _bn(std::make_unique<bn_type>()), _join
 
 BNInferenceEngine::~BNInferenceEngine() = default;
 
-void BNInferenceEngine::loadModel(SituationGraph sg) {
+void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationInstance>& instanceMap) {
     std::cout << "\nLoading Bayesian Network Model..." << std::endl;
     _sg = sg;  // Store the graph
-    
-    // Create new network
-    _bn = std::make_unique<bn_type>();  // Reset network
-    _nodeMap.clear();
-    _joinTree.reset();
-    
-    // Step 1: Add nodes for each situation
-    std::cout << "Adding nodes to Bayesian Network:" << std::endl;
-    for (int layer = 0; layer < sg.modelHeight(); layer++) {
-        DirectedGraph currentLayer = sg.getLayer(layer);
-        std::cout << "Layer " << layer << ":" << std::endl;
-        for (const auto& nodeId : currentLayer.getVertices()) {
-            const SituationNode& node = sg.getNode(nodeId);
-            std::cout << "  Adding node ID: " << node.id << std::endl;
-            addNode(std::to_string(node.id), node);
-        }
-    }
-    
-    // Step 2: Add edges based on relations
-    std::cout << "\nAdding edges to Bayesian Network:" << std::endl;
-    for (int layer = 0; layer < sg.modelHeight(); layer++) {
-        DirectedGraph currentLayer = sg.getLayer(layer);
-        for (const auto& nodeId : currentLayer.getVertices()) {
-            const SituationNode& node = sg.getNode(nodeId);
-            // Add edges for both vertical and horizontal relations
-            for (const auto& [childId, relation] : sg.getOutgoingRelations(node.id)) {
-                std::cout << "  Adding edge: " << node.id << " -> " << childId << " (weight: " << relation.weight << ")" << std::endl;
-                addEdge(std::to_string(node.id), std::to_string(childId), relation.weight);
-            }
-        }
-    }
-    std::cout << "Bayesian Network Model loading complete.\n" << std::endl;
-}
-
-void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstance> &instanceMap, simtime_t current, std::shared_ptr<ReasonerLogger> logger) {
-    _sg = sg;  // Update stored graph
-    _logger = logger;
-    
-    std::cout << "\nInitializing Bayesian Network..." << std::endl;
     
     // Step 1: Discover causal structure and create subgraph
     SituationGraph causalGraph;
@@ -165,6 +126,18 @@ void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstan
         constructCPT(node, causalInstanceMap);
     }
     
+    std::cout << "Bayesian Network Model loading complete.\n" << std::endl;
+}
+
+void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstance> &instanceMap, simtime_t current, std::shared_ptr<ReasonerLogger> logger) {
+    _sg = sg;  // Update stored graph
+    _logger = logger;
+    
+    std::cout << "\nInitializing Bayesian Network..." << std::endl;
+    
+    // Load the model with the current graph and instances
+    loadModel(sg, instanceMap);
+    
     if (_logger) {
         _logger->logStep("BN Structure Created", 
                        current, 
@@ -175,7 +148,7 @@ void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstan
                        SituationInstance::UNDETERMINED);
     }
 
-    // Step 4: Build join tree and create solution
+    // Build join tree and create solution
     try {
         std::cout << "Building join tree..." << std::endl;
         buildJoinTree();
@@ -191,7 +164,7 @@ void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstan
                            SituationInstance::UNDETERMINED);
         }
         
-        // Step 5: Calculate beliefs
+        // Calculate beliefs
         std::cout << "Calculating beliefs..." << std::endl;
         calculateBeliefs(instanceMap, current);
         std::cout << "Beliefs calculated successfully" << std::endl;
@@ -206,7 +179,16 @@ void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstan
                            SituationInstance::UNDETERMINED);
         }
     } catch (const std::exception& e) {
-        std::cerr << "Error during join tree creation or belief calculation: " << e.what() << std::endl;
+        std::cerr << "Error during inference: " << e.what() << std::endl;
+        if (_logger) {
+            _logger->logStep("BN Inference Error", 
+                           current, 
+                           -1, 
+                           0.0, 
+                           {}, 
+                           {}, 
+                           SituationInstance::UNDETERMINED);
+        }
         throw;
     }
 }

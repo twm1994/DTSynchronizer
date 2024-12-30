@@ -31,6 +31,41 @@ void SituationEvolution::addInstance(long id, SituationInstance::Type type,
     instanceMap[si.id] = si;
 }
 
+int SituationEvolution::numOfConsistentOperation(){
+    int consistency = 0;
+    vector<long> operations = sg.getAllOperationalSitutions();
+    for(auto op : operations){
+        bool inconsistency = false;
+        /*
+         * Check the explicit cause only
+         */
+//        vector<long> causes = sg.getNode(op).causes;
+//        for(auto cause : causes){
+//            int causeCounter = instanceMap[cause].counter;
+//            if(causeCounter < instanceMap[op].counter){
+//                inconsistency = true;
+//                break;
+//            }
+//        }
+        /*
+         * Check both explicit cause and implicit cause
+         */
+        for(auto op2 : operations){
+            if(op2 != op && sg.isReachable(op2, op) && !sg.isReachable(op, op2)){
+                int causeCounter = instanceMap[op2].counter;
+                if(causeCounter < instanceMap[op].counter){
+                    inconsistency = true;
+                    break;
+                }
+            }
+        }
+        if(!inconsistency){
+            consistency++;
+        }
+    }
+    return consistency;
+}
+
 SituationInstance& SituationEvolution::getInstance(long id) {
     return instanceMap[id];
 }

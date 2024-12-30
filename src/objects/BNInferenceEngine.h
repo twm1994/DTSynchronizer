@@ -123,7 +123,7 @@ public:
     BNInferenceEngine();
     virtual ~BNInferenceEngine();
     
-    void loadModel(SituationGraph sg);
+    void loadModel(SituationGraph sg, std::map<long, SituationInstance>& instanceMap);
     void reason(SituationGraph sg,
                std::map<long, SituationInstance> &instanceMap,
                simtime_t current,

@@ -178,6 +178,9 @@ void IoTEvent::copy(const IoTEvent& other)
     this->eventID = other.eventID;
     this->toTrigger = other.toTrigger;
     this->timestamp = other.timestamp;
+    this->counter = other.counter;
+    this->causeCounts = other.causeCounts;
+    this->type = other.type;
 }
 
 void IoTEvent::parsimPack(omnetpp::cCommBuffer *b) const
@@ -186,6 +189,9 @@ void IoTEvent::parsimPack(omnetpp::cCommBuffer *b) const
     doParsimPacking(b,this->eventID);
     doParsimPacking(b,this->toTrigger);
     doParsimPacking(b,this->timestamp);
+    doParsimPacking(b,this->counter);
+    doParsimPacking(b,this->causeCounts);
+    doParsimPacking(b,this->type);
 }
 
 void IoTEvent::parsimUnpack(omnetpp::cCommBuffer *b)
@@ -194,6 +200,9 @@ void IoTEvent::parsimUnpack(omnetpp::cCommBuffer *b)
     doParsimUnpacking(b,this->eventID);
     doParsimUnpacking(b,this->toTrigger);
     doParsimUnpacking(b,this->timestamp);
+    doParsimUnpacking(b,this->counter);
+    doParsimUnpacking(b,this->causeCounts);
+    doParsimUnpacking(b,this->type);
 }
 
 long IoTEvent::getEventID() const
@@ -226,6 +235,36 @@ void IoTEvent::setTimestamp(omnetpp::simtime_t timestamp)
     this->timestamp = timestamp;
 }
 
+int IoTEvent::getCounter() const
+{
+    return this->counter;
+}
+
+void IoTEvent::setCounter(int counter)
+{
+    this->counter = counter;
+}
+
+const char * IoTEvent::getCauseCounts() const
+{
+    return this->causeCounts.c_str();
+}
+
+void IoTEvent::setCauseCounts(const char * causeCounts)
+{
+    this->causeCounts = causeCounts;
+}
+
+short IoTEvent::getType() const
+{
+    return this->type;
+}
+
+void IoTEvent::setType(short type)
+{
+    this->type = type;
+}
+
 class IoTEventDescriptor : public omnetpp::cClassDescriptor
 {
   private:
@@ -234,6 +273,9 @@ class IoTEventDescriptor : public omnetpp::cClassDescriptor
         FIELD_eventID,
         FIELD_toTrigger,
         FIELD_timestamp,
+        FIELD_counter,
+        FIELD_causeCounts,
+        FIELD_type,
     };
   public:
     IoTEventDescriptor();
@@ -300,7 +342,7 @@ const char *IoTEventDescriptor::getProperty(const char *propertyName) const
 int IoTEventDescriptor::getFieldCount() const
 {
     omnetpp::cClassDescriptor *base = getBaseClassDescriptor();
-    return base ? 3+base->getFieldCount() : 3;
+    return base ? 6+base->getFieldCount() : 6;
 }
 
 unsigned int IoTEventDescriptor::getFieldTypeFlags(int field) const
@@ -315,8 +357,11 @@ unsigned int IoTEventDescriptor::getFieldTypeFlags(int field) const
         FD_ISEDITABLE,    // FIELD_eventID
         FD_ISEDITABLE,    // FIELD_toTrigger
         FD_ISEDITABLE,    // FIELD_timestamp
+        FD_ISEDITABLE,    // FIELD_counter
+        FD_ISEDITABLE,    // FIELD_causeCounts
+        FD_ISEDITABLE,    // FIELD_type
     };
-    return (field >= 0 && field < 3) ? fieldTypeFlags[field] : 0;
+    return (field >= 0 && field < 6) ? fieldTypeFlags[field] : 0;
 }
 
 const char *IoTEventDescriptor::getFieldName(int field) const
@@ -331,8 +376,11 @@ const char *IoTEventDescriptor::getFieldName(int field) const
         "eventID",
         "toTrigger",
         "timestamp",
+        "counter",
+        "causeCounts",
+        "type",
     };
-    return (field >= 0 && field < 3) ? fieldNames[field] : nullptr;
+    return (field >= 0 && field < 6) ? fieldNames[field] : nullptr;
 }
 
 int IoTEventDescriptor::findField(const char *fieldName) const
@@ -342,6 +390,9 @@ int IoTEventDescriptor::findField(const char *fieldName) const
     if (strcmp(fieldName, "eventID") == 0) return baseIndex + 0;
     if (strcmp(fieldName, "toTrigger") == 0) return baseIndex + 1;
     if (strcmp(fieldName, "timestamp") == 0) return baseIndex + 2;
+    if (strcmp(fieldName, "counter") == 0) return baseIndex + 3;
+    if (strcmp(fieldName, "causeCounts") == 0) return baseIndex + 4;
+    if (strcmp(fieldName, "type") == 0) return baseIndex + 5;
     return base ? base->findField(fieldName) : -1;
 }
 
@@ -357,8 +408,11 @@ const char *IoTEventDescriptor::getFieldTypeString(int field) const
         "long",    // FIELD_eventID
         "bool",    // FIELD_toTrigger
         "omnetpp::simtime_t",    // FIELD_timestamp
+        "int",    // FIELD_counter
+        "string",    // FIELD_causeCounts
+        "short",    // FIELD_type
     };
-    return (field >= 0 && field < 3) ? fieldTypeStrings[field] : nullptr;
+    return (field >= 0 && field < 6) ? fieldTypeStrings[field] : nullptr;
 }
 
 const char **IoTEventDescriptor::getFieldPropertyNames(int field) const
@@ -444,6 +498,9 @@ std::string IoTEventDescriptor::getFieldValueAsString(omnetpp::any_ptr object, i
         case FIELD_eventID: return long2string(pp->getEventID());
         case FIELD_toTrigger: return bool2string(pp->getToTrigger());
         case FIELD_timestamp: return simtime2string(pp->getTimestamp());
+        case FIELD_counter: return long2string(pp->getCounter());
+        case FIELD_causeCounts: return oppstring2string(pp->getCauseCounts());
+        case FIELD_type: return long2string(pp->getType());
         default: return "";
     }
 }
@@ -463,6 +520,9 @@ void IoTEventDescriptor::setFieldValueAsString(omnetpp::any_ptr object, int fiel
         case FIELD_eventID: pp->setEventID(string2long(value)); break;
         case FIELD_toTrigger: pp->setToTrigger(string2bool(value)); break;
         case FIELD_timestamp: pp->setTimestamp(string2simtime(value)); break;
+        case FIELD_counter: pp->setCounter(string2long(value)); break;
+        case FIELD_causeCounts: pp->setCauseCounts((value)); break;
+        case FIELD_type: pp->setType(string2long(value)); break;
         default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'IoTEvent'", field);
     }
 }
@@ -480,6 +540,9 @@ omnetpp::cValue IoTEventDescriptor::getFieldValue(omnetpp::any_ptr object, int f
         case FIELD_eventID: return (omnetpp::intval_t)(pp->getEventID());
         case FIELD_toTrigger: return pp->getToTrigger();
         case FIELD_timestamp: return pp->getTimestamp().dbl();
+        case FIELD_counter: return pp->getCounter();
+        case FIELD_causeCounts: return pp->getCauseCounts();
+        case FIELD_type: return pp->getType();
         default: throw omnetpp::cRuntimeError("Cannot return field %d of class 'IoTEvent' as cValue -- field index out of range?", field);
     }
 }
@@ -499,6 +562,9 @@ void IoTEventDescriptor::setFieldValue(omnetpp::any_ptr object, int field, int i
         case FIELD_eventID: pp->setEventID(omnetpp::checked_int_cast<long>(value.intValue())); break;
         case FIELD_toTrigger: pp->setToTrigger(value.boolValue()); break;
         case FIELD_timestamp: pp->setTimestamp(value.doubleValue()); break;
+        case FIELD_counter: pp->setCounter(omnetpp::checked_int_cast<int>(value.intValue())); break;
+        case FIELD_causeCounts: pp->setCauseCounts(value.stringValue()); break;
+        case FIELD_type: pp->setType(omnetpp::checked_int_cast<short>(value.intValue())); break;
         default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'IoTEvent'", field);
     }
 }

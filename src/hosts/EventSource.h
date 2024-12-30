@@ -19,17 +19,21 @@
 #include <omnetpp.h>
 #include <map>
 #include <vector>
+#include <nlohmann/json.hpp>
 #include "../objects/SituationArranger.h"
 #include "../transport/LatencyGenerator.h"
 
 using namespace std;
 using namespace omnetpp;
+using json = nlohmann::json;
 
 /**
  *
  */
 class EventSource: public cSimpleModule {
 private:
+    // specify the maximal situation counter value;
+    int MAX_COUNT;
     simtime_t min_event_cycle;
     // event generation timeout
     cMessage* EGTimeout;
@@ -37,7 +41,12 @@ private:
     SituationArranger sa;
 
 protected:
+    cOutVector generatedOperations;
+    cOutVector generatedSituations;
+    int toltalOperations;
+    int toltalSituations;
     virtual void initialize() override;
+    virtual void finish() override;    
     virtual void handleMessage(cMessage *msg) override;
 
 public:

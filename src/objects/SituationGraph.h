@@ -22,10 +22,8 @@
 #include <utility>
 #include <iostream> // Added for std::ostream
 #include <memory> // Added for std::unique_ptr
-// Boost includes
-#include <boost/tuple/tuple.hpp>
-#include <boost/tuple/tuple_comparison.hpp>
-#include <boost/tuple/tuple_io.hpp>
+#include <fstream>
+#include <nlohmann/json.hpp>
 
 // Project includes
 #include "DirectedGraph.h"
@@ -33,6 +31,7 @@
 #include "SituationRelation.h"
 
 using namespace std;
+using json = nlohmann::json;
 
 // Forward declaration
 class SituationEvolution;

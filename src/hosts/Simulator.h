@@ -24,7 +24,10 @@ using namespace std;
 class Simulator : public cSimpleModule
 {
   protected:
+    cOutVector SimulatedOperations;
+    int toltalOperations;  
     virtual void initialize() override;
+    virtual void finish() override;    
     virtual void handleMessage(cMessage *msg) override;
 };
 

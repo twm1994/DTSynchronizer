@@ -62,6 +62,29 @@ namespace dlib {
 
 using bayes_network = dlib::directed_graph<dlib::bayes_node>::kernel_1a_c;
 
+struct CausalConnection {
+    std::set<const SituationNode*> nodes;
+    std::set<std::pair<const SituationNode*, const SituationNode*>> edges;
+};
+
+struct RelationType {
+    enum Type {
+        NONE,       // No relations
+        SOLE,       // Single SOLE relation
+        AND_ONLY,   // Only AND relations
+        OR_ONLY,    // Only OR relations
+        MIXED       // Mixed relations
+    };
+};
+
+struct NodeRelations {
+    RelationType::Type type;
+    std::vector<long> andNodes;
+    std::vector<long> orNodes;
+    std::vector<std::pair<long, const SituationRelation*>> soleNodes;
+    bool hasMixedRelations;  // True if any node has both causes and evidences
+};
+
 class BNInferenceEngine {
 private:
     typedef dlib::set<unsigned long>::kernel_1a set_type;
@@ -109,15 +132,29 @@ protected:
     bool determineNodeState(const SituationNode& node,
                           SituationInstance& instance,
                           const std::map<long, SituationInstance>& instanceMap);
-    std::unique_ptr<dlib::set<long>::kernel_1a> findConnectedNodes(const SituationNode& node);
-    std::pair<std::unique_ptr<dlib::set<long>::kernel_1a>, std::unique_ptr<dlib::set<std::pair<long, long>>::kernel_1a>>
-    findCausallyConnectedNodes(const std::map<long, SituationInstance>& instanceMap);
+    std::set<const SituationNode*> findConnectedNodes(const SituationNode& node);
+    CausalConnection findCausallyConnectedNodes(const std::map<long, SituationInstance>& instanceMap);
     std::pair<dlib::set<long>::kernel_1a, dlib::set<std::pair<long, long>>::kernel_1a>
     discoverCausalStructure(const std::map<long, SituationInstance>& instanceMap);
     void calculateBeliefs(std::map<long, SituationInstance>& instanceMap, simtime_t current);
     std::vector<unsigned long> getDescendants(unsigned long node) const;
     virtual void constructCPT(const SituationNode& node,
                      const std::map<long, SituationInstance>& instanceMap);
+    
+    /**
+     * Analyze the relations of a node and classify them into different types
+     */
+    NodeRelations analyzeNodeRelations(const SituationNode& node);
+    
+    /**
+     * Construct the CPT based on the analyzed relations
+     */
+    void constructCPTFromRelations(const SituationNode& node, const NodeRelations& relations);
+    
+    /**
+     * Check if a node has mixed relations (both causes and evidences)
+     */
+    bool hasMixedRelations(const SituationNode& node) const;
 
 public:
     BNInferenceEngine();

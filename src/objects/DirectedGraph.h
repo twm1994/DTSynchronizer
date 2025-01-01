@@ -22,26 +22,50 @@
 #include <unordered_map>
 #include <stack>
 #include <set>
+#include <algorithm>
 
 using namespace std;
 
 class DirectedGraph {
 private:
-    map<long, list<long> > adjList; // Adjacency list to store the graph
+    map<long, vector<long> > adjList; // Adjacency list to store the graph
     set<long> verList;
 
     void DFS_topological(unordered_map<long, bool> &visited, stack<long> &st, long node);
 
 public:
     DirectedGraph();
-    void add_vertex(long vertex);
-    // Function to add an edge between vertices u and v of the graph
-    void add_edge(long src, long dist);
-    // Function to print the adjacency list representation of the graph
-    void print();
+    void add_vertex(long id);
+    void add_edge(long from, long to);
+    void remove_vertex(long id);
+     // Function to print the adjacency list representation of the graph
+    void print();   
+    // Check if vertex exists
+    bool has_vertex(long id) const { return verList.find(id) != verList.end(); }
+    
+    // Check if edge exists
+    bool has_edge(long from, long to) const {
+        auto it = adjList.find(from);
+        if (it != adjList.end()) {
+            const auto& edges = it->second;
+            return std::find(edges.begin(), edges.end(), to) != edges.end();
+        }
+        return false;
+    }
+    
+    // Remove edge if it exists
+    void remove_edge(long from, long to) {
+        auto it = adjList.find(from);
+        if (it != adjList.end()) {
+            auto& edges = it->second;
+            edges.erase(std::remove(edges.begin(), edges.end(), to), edges.end());
+        }
+    }
+    
     //Function to return list containing vertices in Topological order.
     vector<long> topo_sort();
     const set<long>& getVertices() const { return verList; }
+    const vector<long>& getAdjacencyList(long id) const { return adjList.at(id); }
     virtual ~DirectedGraph();
 };
 

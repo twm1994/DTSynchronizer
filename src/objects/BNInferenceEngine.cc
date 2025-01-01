@@ -53,56 +53,65 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
             causalGraph.situationMap[nodeId] = origNode;
             causalInstanceMap[nodeId] = instanceMap[nodeId];
         }
-        
-        // Build layers for causal graph (assuming same layer structure as original)
-        causalGraph.layers.clear();
-        for (int i = 0; i < sg.modelHeight(); i++) {
-            DirectedGraph origLayer = sg.getLayer(i);
-            DirectedGraph layer;
-            // Add vertices that exist in the causal subgraph
-            for (const auto& nodeId : origLayer.getVertices()) {
-                const SituationNode& node = _sg.getNode(nodeId);
-                if (std::find_if(result.nodes.begin(), result.nodes.end(),
-                    [&node](const SituationNode* n) { return n->id == node.id; }) != result.nodes.end()) {
-                    layer.add_vertex(nodeId);
-                }
-            }
-            
-            // Add edges that exist in the causal subgraph
-            for (const auto& edge : result.edges) {
-                const auto& vertices = origLayer.getVertices();
-                if (std::find(vertices.begin(), vertices.end(), edge.first->id) != vertices.end() &&
-                    std::find(vertices.begin(), vertices.end(), edge.second->id) != vertices.end()) {
-                    layer.add_vertex(edge.first->id);
-                    layer.add_vertex(edge.second->id);
-                    layer.add_edge(edge.first->id, edge.second->id);
-                }
-            }
-            
-            causalGraph.layers.push_back(layer);
-        }
     }
     
     // Step 2: Analyze node relations
     std::cout << "Analyzing node relations..." << std::endl;
     bool hasMixedRelations = false;
+    std::vector<long> mixedRelationNodes;  // Store nodes with mixed relations for step 3
     std::map<long, NodeRelations> nodeRelationsMap;
+    
     for (const auto& [id, node] : causalGraph.situationMap) {
         NodeRelations relations = analyzeNodeRelations(node);
         nodeRelationsMap[id] = relations;
         if (relations.hasMixedRelations) {
             hasMixedRelations = true;
+            mixedRelationNodes.push_back(id);
             std::cout << "Node " << id << " has mixed AND/OR relations" << std::endl;
         }
     }
     
-    // Step 3: Perform subgraph completion if needed (for case 5)
-    if (hasMixedRelations) {
-        std::cout << "Mixed relations detected, subgraph completion needed (not implemented yet)" << std::endl;
-        // TODO: Implement subgraph completion for case 5
+    // Step 3: Flatten causal subgraph into single DirectedGraph
+    std::cout << "Flattening causal subgraph..." << std::endl;
+    DirectedGraph causalDGraph;
+    
+    // First add all vertices
+    for (const auto& [id, _] : causalGraph.situationMap) {
+        causalDGraph.add_vertex(id);
     }
     
-    // Step 4: Create Bayesian network for the subgraph
+    // Then add all edges (both causes and evidences become parents)
+    for (const auto& [id, node] : causalGraph.situationMap) {
+        // Add edges from causes (parent -> child)
+        for (const auto& cause : node.causes) {
+            if (causalGraph.situationMap.find(cause) != causalGraph.situationMap.end()) {
+                causalDGraph.add_edge(cause, id);
+            }
+        }
+        
+        // Add edges from evidences (parent -> child)
+        for (const auto& evidence : node.evidences) {
+            if (causalGraph.situationMap.find(evidence) != causalGraph.situationMap.end()) {
+                causalDGraph.add_edge(evidence, id);
+            }
+        }
+    }
+    
+    // Step 4: Perform subgraph completion if needed
+    if (hasMixedRelations) {
+        std::cout << "Mixed relations detected, performing subgraph completion for " 
+                  << mixedRelationNodes.size() << " nodes..." << std::endl;
+                  
+        _mixedNodeInfo.clear();  // Clear any previous mixed node info
+        
+        // Process each mixed relation node
+        for (long nodeId : mixedRelationNodes) {
+            const auto& relations = nodeRelationsMap[nodeId];
+            completeMixedRelationSubgraph(nodeId, causalDGraph, relations, _mixedNodeInfo);
+        }
+    }
+    
+    // Step 5: Create Bayesian network for the subgraph
     std::cout << "Creating Bayesian Network structure..." << std::endl;
     _bn = std::make_unique<bn_type>();
     _nodeMap.clear();
@@ -114,37 +123,114 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
         addNode(std::to_string(id), causalGraph.getNode(id));
     }
     
-    // Then add all edges
-    for (const auto& [nodeId, node] : causalGraph.situationMap) {
-        // Add edges from causes
-        for (const auto& cause : node.causes) {
-            if (causalGraph.situationMap.find(cause) != causalGraph.situationMap.end()) {
-                const SituationRelation* relation = causalGraph.getRelation(cause, nodeId);
+    // Then add all edges using the flattened graph's adjacency lists
+    const auto& vertices = causalDGraph.getVertices();
+    for (const auto& childId : vertices) {
+        try {
+            const auto& parents = causalDGraph.getAdjacencyList(childId);
+            const SituationNode& childNode = causalGraph.getNode(childId);
+            
+            for (const auto& parentId : parents) {
+                // Look up the relation in the original graph
+                const SituationRelation* relation = nullptr;
+                
+                // Check if parent is a cause
+                if (std::find(childNode.causes.begin(), childNode.causes.end(), parentId) != childNode.causes.end()) {
+                    relation = causalGraph.getRelation(parentId, childId);
+                }
+                // Check if parent is an evidence
+                else if (std::find(childNode.evidences.begin(), childNode.evidences.end(), parentId) != childNode.evidences.end()) {
+                    relation = causalGraph.getRelation(childId, parentId);
+                }
+                
                 if (relation) {
-                    addEdge(std::to_string(cause), std::to_string(nodeId), relation->weight);
+                    addEdge(std::to_string(parentId), std::to_string(childId), relation->weight);
                 }
             }
-        }
-        
-        // Add edges from evidences
-        for (const auto& evidence : node.evidences) {
-            if (causalGraph.situationMap.find(evidence) != causalGraph.situationMap.end()) {
-                const SituationRelation* relation = causalGraph.getRelation(nodeId, evidence);
-                if (relation) {
-                    addEdge(std::to_string(nodeId), std::to_string(evidence), relation->weight);
-                }
-            }
+        } catch (const std::out_of_range&) {
+            // Skip if vertex has no adjacency list (no parents)
+            continue;
         }
     }
     
-    // Step 5: Construct CPTs for the Bayesian Network
+    // Step 6: Construct CPTs for the Bayesian Network
     std::cout << "Constructing Conditional Probability Tables..." << std::endl;
     for (const auto& [id, instance] : causalInstanceMap) {
         const SituationNode& node = causalGraph.getNode(id);
-        constructCPT(node, causalInstanceMap);
+        if (_mixedNodeInfo.find(id) != _mixedNodeInfo.end()) {
+            // Case 5: Mixed relations - use M and N nodes
+            constructMixedRelationCPT(node, _mixedNodeInfo[id], causalInstanceMap);
+        } else {
+            // Cases 1-4: Regular CPT construction
+            constructCPT(node, causalInstanceMap);
+        }
     }
     
     std::cout << "Bayesian Network Model loading complete.\n" << std::endl;
+}
+
+void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstance> &instanceMap, simtime_t current, std::shared_ptr<ReasonerLogger> logger) {
+    _sg = sg;  // Update stored graph
+    _logger = logger;
+    
+    std::cout << "\nInitializing Bayesian Network..." << std::endl;
+    
+    // Load the model with the current graph and instances
+    loadModel(sg, instanceMap);
+    
+    if (_logger) {
+        _logger->logStep("BN Structure Created", 
+                       current, 
+                       -1, 
+                       0.0, 
+                       {}, 
+                       {}, 
+                       SituationInstance::UNDETERMINED);
+    }
+
+    // Build join tree and create solution
+    try {
+        std::cout << "Building join tree..." << std::endl;
+        buildJoinTree();
+        std::cout << "Join tree built successfully" << std::endl;
+        
+        if (_logger) {
+            _logger->logStep("BN Join Tree Created", 
+                           current, 
+                           -1, 
+                           0.0, 
+                           {}, 
+                           {}, 
+                           SituationInstance::UNDETERMINED);
+        }
+        
+        // Calculate beliefs
+        std::cout << "Calculating beliefs..." << std::endl;
+        calculateBeliefs(instanceMap, current);
+        std::cout << "Beliefs calculated successfully" << std::endl;
+        
+        if (_logger) {
+            _logger->logStep("BN Beliefs Calculated", 
+                           current, 
+                           -1, 
+                           0.0, 
+                           {}, 
+                           {}, 
+                           SituationInstance::UNDETERMINED);
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error during inference: " << e.what() << std::endl;
+        if (_logger) {
+            _logger->logStep("BN Inference Error", 
+                           current, 
+                           -1, 
+                           0.0, 
+                           {}, 
+                           {}, 
+                           SituationInstance::UNDETERMINED);
+        }
+        throw;
+    }
 }
 
 void BNInferenceEngine::addNode(const std::string& nodeName, const SituationNode& node) {
@@ -186,52 +272,6 @@ void BNInferenceEngine::addEdge(const std::string& parentName, const std::string
         std::cerr << "Error adding edge from " << parentName << " to " << childName << ": " << e.what() << std::endl;
         throw;
     }
-}
-
-CausalConnection BNInferenceEngine::findCausallyConnectedNodes(const std::map<long, SituationInstance>& instanceMap) {
-    std::cout << "Finding causally connected nodes..." << std::endl;
-    
-    CausalConnection result;
-    
-    // First, find all triggered nodes and their neighbors
-    for (const auto& [nodeId, instance] : instanceMap) {
-        std::cout << "Checking node " << nodeId << " (state: " << instance.state << ")" << std::endl;
-        if (instance.state == SituationInstance::TRIGGERED) {
-            std::cout << "  Node " << nodeId << " is triggered" << std::endl;
-            const SituationNode& trigNode = _sg.getNode(nodeId);
-            auto connectedNodes = findConnectedNodes(trigNode);
-            result.nodes.insert(connectedNodes.begin(), connectedNodes.end());
-            result.nodes.insert(&trigNode);  // Add the triggered node itself
-        }
-    }
-    
-    // Then find edges between these nodes
-    for (const auto& node : result.nodes) {
-        // Check causes
-        for (const auto& causeId : node->causes) {
-            const SituationNode& causeNode = _sg.getNode(causeId);
-            auto causeIt = std::find_if(result.nodes.begin(), result.nodes.end(),
-                [&causeNode](const SituationNode* n) { return n->id == causeNode.id; });
-            if (causeIt != result.nodes.end()) {
-                result.edges.insert(std::make_pair(*causeIt, node));
-                std::cout << "Added edge: " << (*causeIt)->id << " -> " << node->id << std::endl;
-            }
-        }
-        
-        // Check evidences
-        for (const auto& evidenceId : node->evidences) {
-            const SituationNode& evidenceNode = _sg.getNode(evidenceId);
-            auto evidenceIt = std::find_if(result.nodes.begin(), result.nodes.end(),
-                [&evidenceNode](const SituationNode* n) { return n->id == evidenceNode.id; });
-            if (evidenceIt != result.nodes.end()) {
-                result.edges.insert(std::make_pair(node, *evidenceIt));
-                std::cout << "Added edge: " << node->id << " -> " << (*evidenceIt)->id << std::endl;
-            }
-        }
-    }
-    
-    std::cout << "Found " << result.nodes.size() << " nodes and " << result.edges.size() << " edges" << std::endl;
-    return result;
 }
 
 bool BNInferenceEngine::hasMixedRelations(const SituationNode& node) const {
@@ -666,6 +706,52 @@ void BNInferenceEngine::calculateBeliefs(std::map<long, SituationInstance>& inst
     }
 }
 
+CausalConnection BNInferenceEngine::findCausallyConnectedNodes(const std::map<long, SituationInstance>& instanceMap) {
+    std::cout << "Finding causally connected nodes..." << std::endl;
+    
+    CausalConnection result;
+    
+    // First, find all triggered nodes and their neighbors
+    for (const auto& [nodeId, instance] : instanceMap) {
+        std::cout << "Checking node " << nodeId << " (state: " << instance.state << ")" << std::endl;
+        if (instance.state == SituationInstance::TRIGGERED) {
+            std::cout << "  Node " << nodeId << " is triggered" << std::endl;
+            const SituationNode& trigNode = _sg.getNode(nodeId);
+            auto connectedNodes = findConnectedNodes(trigNode);
+            result.nodes.insert(connectedNodes.begin(), connectedNodes.end());
+            result.nodes.insert(&trigNode);  // Add the triggered node itself
+        }
+    }
+    
+    // Then find edges between these nodes
+    for (const auto& node : result.nodes) {
+        // Check causes
+        for (const auto& causeId : node->causes) {
+            const SituationNode& causeNode = _sg.getNode(causeId);
+            auto causeIt = std::find_if(result.nodes.begin(), result.nodes.end(),
+                [&causeNode](const SituationNode* n) { return n->id == causeNode.id; });
+            if (causeIt != result.nodes.end()) {
+                result.edges.insert(std::make_pair(*causeIt, node));
+                std::cout << "Added edge: " << (*causeIt)->id << " -> " << node->id << std::endl;
+            }
+        }
+        
+        // Check evidences
+        for (const auto& evidenceId : node->evidences) {
+            const SituationNode& evidenceNode = _sg.getNode(evidenceId);
+            auto evidenceIt = std::find_if(result.nodes.begin(), result.nodes.end(),
+                [&evidenceNode](const SituationNode* n) { return n->id == evidenceNode.id; });
+            if (evidenceIt != result.nodes.end()) {
+                result.edges.insert(std::make_pair(node, *evidenceIt));
+                std::cout << "Added edge: " << node->id << " -> " << (*evidenceIt)->id << std::endl;
+            }
+        }
+    }
+    
+    std::cout << "Found " << result.nodes.size() << " nodes and " << result.edges.size() << " edges" << std::endl;
+    return result;
+}
+
 std::set<const SituationNode*> BNInferenceEngine::findConnectedNodes(const SituationNode& node) {
     std::set<const SituationNode*> connectedNodes;
     
@@ -930,66 +1016,146 @@ void BNInferenceEngine::printProbabilities(std::ostream& out) const {
     }
 }
 
-void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstance>& instanceMap, simtime_t current, std::shared_ptr<ReasonerLogger> logger) {
-    _sg = sg;  // Update stored graph
-    _logger = logger;
+void BNInferenceEngine::constructMixedRelationCPT(const SituationNode& node, 
+                                               const std::pair<long, long>& mnNodes,
+                                               const std::map<long, SituationInstance>& instanceMap) {
+    // Get node index in Bayesian network
+    const std::string nodeName = std::to_string(node.id);
+    if (_nodeMap.find(nodeName) == _nodeMap.end()) return;
+    unsigned long nodeIdx = _nodeMap[nodeName];                                                
+    const long& mNodeId = mnNodes.first;
+    const long& nNodeId = mnNodes.second;
     
-    std::cout << "\nInitializing Bayesian Network..." << std::endl;
+    // First set CPT for S based on M,N nodes (AND relation)
+    // P(S|M,N) has 8 combinations as specified
+    assignment a;
     
-    // Load the model with the current graph and instances
-    loadModel(sg, instanceMap);
+    // Case M=1, N=1
+    a.clear();
+    a.add(mNodeId, 1);  // M = true
+    a.add(nNodeId, 1);  // N = true
+    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 1.0);    // P(S|M,N) = 1
+    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 0.0);    // P(NOT S|M,N) = 0
     
-    if (_logger) {
-        _logger->logStep("BN Structure Created", 
-                       current, 
-                       -1, 
-                       0.0, 
-                       {}, 
-                       {}, 
-                       SituationInstance::UNDETERMINED);
+    // Case M=1, N=0
+    a.clear();
+    a.add(mNodeId, 1);  // M = true
+    a.add(nNodeId, 0);  // N = false
+    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);    // P(S|M,NOT N) = 0
+    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0);    // P(NOT S|M,NOT N) = 1
+    
+    // Case M=0, N=1
+    a.clear();
+    a.add(mNodeId, 0);  // M = false
+    a.add(nNodeId, 1);  // N = true
+    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);    // P(S|NOT M,N) = 0
+    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0);    // P(NOT S|NOT M,N) = 1
+    
+    // Case M=0, N=0
+    a.clear();
+    a.add(mNodeId, 0);  // M = false
+    a.add(nNodeId, 0);  // N = false
+    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);    // P(S|NOT M,NOT N) = 0
+    dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0);    // P(NOT S|NOT M,NOT N) = 1
+    
+    // Get relations for M and N nodes
+    NodeRelations relations = analyzeNodeRelations(node);
+    
+    // Set CPT for M node (AND relation with its parents)
+    if (!relations.andNodes.empty()) {
+        // Create temporary node to reuse AND CPT construction
+        SituationNode mNode;
+        mNode.id = mNodeId;
+        mNode.causes = relations.andNodes;
+        
+        // Copy weights from original relations
+        std::vector<std::pair<long, const SituationRelation*>> mRelations;
+        for (const auto& andNodeId : relations.andNodes) {
+            if (const SituationRelation* rel = _sg.getRelation(andNodeId, node.id)) {
+                mRelations.push_back(std::make_pair(andNodeId, rel));
+            }
+        }
+        
+        // Construct AND CPT for M node
+        NodeRelations mNodeRelations;
+        mNodeRelations.type = RelationType::AND_ONLY;
+        mNodeRelations.andNodes = relations.andNodes;
+        mNodeRelations.soleNodes = mRelations;
+        constructCPTFromRelations(mNode, mNodeRelations);
     }
+    
+    // Set CPT for N node (OR relation with its parents)
+    if (!relations.orNodes.empty()) {
+        // Create temporary node to reuse OR CPT construction
+        SituationNode nNode;
+        nNode.id = nNodeId;
+        nNode.causes = relations.orNodes;
+        
+        // Copy weights from original relations
+        std::vector<std::pair<long, const SituationRelation*>> nRelations;
+        for (const auto& orNodeId : relations.orNodes) {
+            if (const SituationRelation* rel = _sg.getRelation(orNodeId, node.id)) {
+                nRelations.push_back(std::make_pair(orNodeId, rel));
+            }
+        }
+        
+        // Construct OR CPT for N node
+        NodeRelations nNodeRelations;
+        nNodeRelations.type = RelationType::OR_ONLY;
+        nNodeRelations.orNodes = relations.orNodes;
+        nNodeRelations.soleNodes = nRelations;
+        constructCPTFromRelations(nNode, nNodeRelations);
+    }
+}
 
-    // Build join tree and create solution
-    try {
-        std::cout << "Building join tree..." << std::endl;
-        buildJoinTree();
-        std::cout << "Join tree built successfully" << std::endl;
-        
-        if (_logger) {
-            _logger->logStep("BN Join Tree Created", 
-                           current, 
-                           -1, 
-                           0.0, 
-                           {}, 
-                           {}, 
-                           SituationInstance::UNDETERMINED);
+void BNInferenceEngine::completeMixedRelationSubgraph(long nodeId, DirectedGraph& causalDGraph, 
+                                                   const NodeRelations& relations,
+                                                   std::map<long, std::pair<long, long>>& mixedNodeInfo) {
+    // Create M and N nodes with IDs based on original node
+    long mNodeId = nodeId * 10 + 1;  // M node ID
+    long nNodeId = nodeId * 10 + 2;  // N node ID
+    
+    // Add M and N nodes to graph
+    causalDGraph.add_vertex(mNodeId);
+    causalDGraph.add_vertex(nNodeId);
+    
+    // Add edges from M and N to S
+    causalDGraph.add_edge(mNodeId, nodeId);
+    causalDGraph.add_edge(nNodeId, nodeId);
+    
+    // Store M,N node info for later CPT construction
+    mixedNodeInfo[nodeId] = std::make_pair(mNodeId, nNodeId);
+    
+    // Update edges: AND nodes -> M, OR nodes -> N
+    // Redirect AND node edges to M
+    for (const auto& andNodeId : relations.andNodes) {
+        // Get adjacency list to check if edge exists
+        try {
+            const auto& adjList = causalDGraph.getAdjacencyList(andNodeId);
+            // If there's a direct edge to nodeId, remove it and add edge to M
+            if (std::find(adjList.begin(), adjList.end(), nodeId) != adjList.end()) {
+                causalDGraph.remove_edge(andNodeId, nodeId);
+                causalDGraph.add_edge(andNodeId, mNodeId);
+            }
+        } catch (const std::out_of_range&) {
+            // Node doesn't exist in graph, skip it
+            continue;
         }
-        
-        // Calculate beliefs
-        std::cout << "Calculating beliefs..." << std::endl;
-        calculateBeliefs(instanceMap, current);
-        std::cout << "Beliefs calculated successfully" << std::endl;
-        
-        if (_logger) {
-            _logger->logStep("BN Beliefs Calculated", 
-                           current, 
-                           -1, 
-                           0.0, 
-                           {}, 
-                           {}, 
-                           SituationInstance::UNDETERMINED);
+    }
+    
+    // Redirect OR node edges to N
+    for (const auto& orNodeId : relations.orNodes) {
+        // Get adjacency list to check if edge exists
+        try {
+            const auto& adjList = causalDGraph.getAdjacencyList(orNodeId);
+            // If there's a direct edge to nodeId, remove it and add edge to N
+            if (std::find(adjList.begin(), adjList.end(), nodeId) != adjList.end()) {
+                causalDGraph.remove_edge(orNodeId, nodeId);
+                causalDGraph.add_edge(orNodeId, nNodeId);
+            }
+        } catch (const std::out_of_range&) {
+            // Node doesn't exist in graph, skip it
+            continue;
         }
-    } catch (const std::exception& e) {
-        std::cerr << "Error during inference: " << e.what() << std::endl;
-        if (_logger) {
-            _logger->logStep("BN Inference Error", 
-                           current, 
-                           -1, 
-                           0.0, 
-                           {}, 
-                           {}, 
-                           SituationInstance::UNDETERMINED);
-        }
-        throw;
     }
 }

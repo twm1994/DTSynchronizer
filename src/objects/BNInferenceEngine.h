@@ -104,6 +104,30 @@ private:
     // Maps node ID to its M,N node IDs for mixed relation handling
     std::map<long, std::pair<long, long>> _mixedNodeInfo;
     
+    // New lookup tables
+    std::unordered_map<long, SituationNode> _nodeCache;  // Node ID -> SituationNode
+    
+    // Relation cache for each node's causes and evidences
+    struct RelationInfo {
+        std::set<long> soleNodes;
+        std::set<long> andNodes;
+        std::set<long> orNodes;
+        NodeRelations relations;  // Pre-computed relations
+    };
+    std::unordered_map<long, RelationInfo> _relationCache;  // Node ID -> RelationInfo
+    
+    // State cache for triggering conditions
+    std::unordered_map<long, std::vector<std::pair<std::string, SituationInstance::State>>> _stateCache;  // Node ID -> [(param, value)]
+    
+    // Weight cache for relations
+    using EdgeKey = std::pair<long, long>;
+    struct EdgeKeyHash {
+        std::size_t operator()(const EdgeKey& k) const {
+            return std::hash<long>()(k.first) ^ (std::hash<long>()(k.second) << 1);
+        }
+    };
+    std::unordered_map<EdgeKey, double, EdgeKeyHash> _weightCache;  // (srcID, destID) -> weight
+
     void addNode(const std::string& name, const SituationNode& node);
     void addEdge(const std::string& parentName, const std::string& childName, double weight);
     void buildJoinTree();
@@ -176,6 +200,9 @@ protected:
      */
     bool hasMixedRelations(const SituationNode& node) const;
 
+    // Helper method to initialize caches
+    void initializeCaches(std::map<long, SituationInstance>& instanceMap);
+
 public:
     BNInferenceEngine();
     virtual ~BNInferenceEngine();
@@ -185,7 +212,6 @@ public:
                std::map<long, SituationInstance> &instanceMap,
                simtime_t current,
                std::shared_ptr<ReasonerLogger> logger = nullptr);
-    void convertGraphToBN(const SituationGraph& sg);
     
     // Print functions
     void printNetwork(std::ostream& out = std::cout) const;

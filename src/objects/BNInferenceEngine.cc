@@ -32,6 +32,9 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
     std::cout << "\nLoading Bayesian Network Model..." << std::endl;
     _sg = sg;  // Store the graph
     
+    // Initialize caches first
+    initializeCaches(instanceMap);
+    
     // Step 1: Discover causal structure and create subgraph
     SituationGraph causalGraph;
     std::map<long, SituationInstance> causalInstanceMap;
@@ -39,35 +42,45 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
     auto result = findCausallyConnectedNodes(instanceMap);
     if (result.nodes.empty()) {
         std::cout << "No causally connected nodes found, using full graph..." << std::endl;
-        causalGraph = sg;
-        causalInstanceMap = instanceMap;
+        // Use cached nodes directly
+        for (const auto& [nodeId, node] : _nodeCache) {
+            causalGraph.situationMap[nodeId] = node;
+            if (instanceMap.find(nodeId) != instanceMap.end()) {
+                causalInstanceMap[nodeId] = instanceMap[nodeId];
+            }
+        }
     } else {
         std::cout << "Found " << result.nodes.size() << " causally connected nodes and " 
                   << result.edges.size() << " edges" << std::endl;
         
         // Create new graph with only causally connected nodes
-        // Copy nodes to causal graph
         for (const auto& node : result.nodes) {
             long nodeId = node->id;
-            const SituationNode& origNode = sg.getNode(nodeId);
-            causalGraph.situationMap[nodeId] = origNode;
-            causalInstanceMap[nodeId] = instanceMap[nodeId];
+            auto it = _nodeCache.find(nodeId);
+            if (it != _nodeCache.end()) {
+                causalGraph.situationMap[nodeId] = it->second;
+                if (instanceMap.find(nodeId) != instanceMap.end()) {
+                    causalInstanceMap[nodeId] = instanceMap[nodeId];
+                }
+            }
         }
     }
     
     // Step 2: Analyze node relations
     std::cout << "Analyzing node relations..." << std::endl;
     bool hasMixedRelations = false;
-    std::vector<long> mixedRelationNodes;  // Store nodes with mixed relations for step 3
-    std::map<long, NodeRelations> nodeRelationsMap;
+    std::vector<long> mixedRelationNodes;
     
-    for (const auto& [id, node] : causalGraph.situationMap) {
-        NodeRelations relations = analyzeNodeRelations(node);
-        nodeRelationsMap[id] = relations;
-        if (relations.hasMixedRelations) {
-            hasMixedRelations = true;
-            mixedRelationNodes.push_back(id);
-            std::cout << "Node " << id << " has mixed AND/OR relations" << std::endl;
+    // Use cached relations
+    for (const auto& [nodeId, node] : causalGraph.situationMap) {
+        auto relIt = _relationCache.find(nodeId);
+        if (relIt != _relationCache.end()) {
+            const auto& relations = relIt->second.relations;
+            if (relations.type == RelationType::MIXED) {
+                hasMixedRelations = true;
+                mixedRelationNodes.push_back(nodeId);
+                std::cout << "Node " << nodeId << " has mixed AND/OR relations" << std::endl;
+            }
         }
     }
     
@@ -76,25 +89,29 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
     DirectedGraph causalDGraph;
     
     // First add all vertices
-    for (const auto& [id, _] : causalGraph.situationMap) {
-        causalDGraph.add_vertex(id);
+    for (const auto& [nodeId, _] : causalGraph.situationMap) {
+        causalDGraph.add_vertex(nodeId);
     }
     
-    // Then add all edges (both causes and evidences become parents)
-    for (const auto& [id, node] : causalGraph.situationMap) {
-        // Add edges from causes (parent -> child)
-        for (const auto& cause : node.causes) {
-            if (causalGraph.situationMap.find(cause) != causalGraph.situationMap.end()) {
-                causalDGraph.add_edge(cause, id);
-            }
-        }
+    // Then add all edges using cached relations
+    for (const auto& [nodeId, node] : causalGraph.situationMap) {
+        auto relIt = _relationCache.find(nodeId);
+        if (relIt == _relationCache.end()) continue;
         
-        // Add edges from evidences (parent -> child)
-        for (const auto& evidence : node.evidences) {
-            if (causalGraph.situationMap.find(evidence) != causalGraph.situationMap.end()) {
-                causalDGraph.add_edge(evidence, id);
+        const auto& relInfo = relIt->second;
+        
+        // Add edges from all relation types
+        auto addEdgesFromSet = [&](const std::set<long>& nodes) {
+            for (long parentId : nodes) {
+                if (causalGraph.situationMap.find(parentId) != causalGraph.situationMap.end()) {
+                    causalDGraph.add_edge(parentId, nodeId);
+                }
             }
-        }
+        };
+        
+        addEdgesFromSet(relInfo.soleNodes);
+        addEdgesFromSet(relInfo.andNodes);
+        addEdgesFromSet(relInfo.orNodes);
     }
     
     // Step 4: Perform subgraph completion if needed
@@ -102,12 +119,13 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
         std::cout << "Mixed relations detected, performing subgraph completion for " 
                   << mixedRelationNodes.size() << " nodes..." << std::endl;
                   
-        _mixedNodeInfo.clear();  // Clear any previous mixed node info
+        _mixedNodeInfo.clear();
         
-        // Process each mixed relation node
         for (long nodeId : mixedRelationNodes) {
-            const auto& relations = nodeRelationsMap[nodeId];
-            completeMixedRelationSubgraph(nodeId, causalDGraph, relations, _mixedNodeInfo);
+            auto relIt = _relationCache.find(nodeId);
+            if (relIt != _relationCache.end()) {
+                completeMixedRelationSubgraph(nodeId, causalDGraph, relIt->second.relations, _mixedNodeInfo);
+            }
         }
     }
     
@@ -119,47 +137,39 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
     _solution.reset();
     
     // First add all nodes
-    for (const auto& [id, instance] : causalInstanceMap) {
-        addNode(std::to_string(id), causalGraph.getNode(id));
+    for (const auto& [nodeId, instance] : causalInstanceMap) {
+        auto nodeIt = _nodeCache.find(nodeId);
+        if (nodeIt != _nodeCache.end()) {
+            addNode(std::to_string(nodeId), nodeIt->second);
+        }
     }
     
-    // Then add all edges using the flattened graph's adjacency lists
+    // Then add all edges using the flattened graph's adjacency lists and cached weights
     const auto& vertices = causalDGraph.getVertices();
     for (const auto& childId : vertices) {
         try {
             const auto& parents = causalDGraph.getAdjacencyList(childId);
-            const SituationNode& childNode = causalGraph.getNode(childId);
-            
             for (const auto& parentId : parents) {
-                // Look up the relation in the original graph
-                const SituationRelation* relation = nullptr;
-                
-                // Check if parent is a cause
-                if (std::find(childNode.causes.begin(), childNode.causes.end(), parentId) != childNode.causes.end()) {
-                    relation = causalGraph.getRelation(parentId, childId);
-                }
-                // Check if parent is an evidence
-                else if (std::find(childNode.evidences.begin(), childNode.evidences.end(), parentId) != childNode.evidences.end()) {
-                    relation = causalGraph.getRelation(childId, parentId);
-                }
-                
-                if (relation) {
-                    addEdge(std::to_string(parentId), std::to_string(childId), relation->weight);
+                auto weightIt = _weightCache.find({parentId, childId});
+                if (weightIt != _weightCache.end()) {
+                    addEdge(std::to_string(parentId), std::to_string(childId), weightIt->second);
                 }
             }
         } catch (const std::out_of_range&) {
-            // Skip if vertex has no adjacency list (no parents)
             continue;
         }
     }
     
     // Step 6: Construct CPTs for the Bayesian Network
     std::cout << "Constructing Conditional Probability Tables..." << std::endl;
-    for (const auto& [id, instance] : causalInstanceMap) {
-        const SituationNode& node = causalGraph.getNode(id);
-        if (_mixedNodeInfo.find(id) != _mixedNodeInfo.end()) {
+    for (const auto& [nodeId, instance] : causalInstanceMap) {
+        auto nodeIt = _nodeCache.find(nodeId);
+        if (nodeIt == _nodeCache.end()) continue;
+        
+        const SituationNode& node = nodeIt->second;
+        if (_mixedNodeInfo.find(nodeId) != _mixedNodeInfo.end()) {
             // Case 5: Mixed relations - use M and N nodes
-            constructMixedRelationCPT(node, _mixedNodeInfo[id], causalInstanceMap);
+            constructMixedRelationCPT(node, _mixedNodeInfo[nodeId], causalInstanceMap);
         } else {
             // Cases 1-4: Regular CPT construction
             constructCPT(node, causalInstanceMap);
@@ -275,80 +285,57 @@ void BNInferenceEngine::addEdge(const std::string& parentName, const std::string
 }
 
 bool BNInferenceEngine::hasMixedRelations(const SituationNode& node) const {
-    bool hasAndRelation = false;
-    bool hasOrRelation = false;
-    
-    // Check causes
-    for (const auto& cause : node.causes) {
-        const SituationRelation* relation = _sg.getRelation(cause, node.id);
-        if (relation) {
-            if (relation->relation == SituationRelation::AND) {
-                hasAndRelation = true;
-            } else if (relation->relation == SituationRelation::OR) {
-                hasOrRelation = true;
-            }
-        }
+    auto it = _relationCache.find(node.id);
+    if (it != _relationCache.end()) {
+        const auto& relInfo = it->second;
+        return !relInfo.andNodes.empty() && !relInfo.orNodes.empty();
     }
-    
-    // Check evidences
-    for (const auto& evidence : node.evidences) {
-        const SituationRelation* relation = _sg.getRelation(node.id, evidence);
-        if (relation) {
-            if (relation->relation == SituationRelation::AND) {
-                hasAndRelation = true;
-            } else if (relation->relation == SituationRelation::OR) {
-                hasOrRelation = true;
-            }
-        }
-    }
-    
-    // Return true if we have both AND and OR relations
-    return hasAndRelation && hasOrRelation;
+    return false;
 }
 
 NodeRelations BNInferenceEngine::analyzeNodeRelations(const SituationNode& node) {
-    NodeRelations relations;
-    relations.type = RelationType::NONE;
-    relations.hasMixedRelations = hasMixedRelations(node);
-    
-    auto classifyNode = [&](long nodeId, const SituationRelation* relation) {
-        if (relation) {
-            if (relation->relation == SituationRelation::AND) {
-                relations.andNodes.push_back(nodeId);
-            } else if (relation->relation == SituationRelation::OR) {
-                relations.orNodes.push_back(nodeId);
-            } else if (relation->relation == SituationRelation::SOLE) {
-                relations.soleNodes.push_back({nodeId, relation});
+    auto it = _relationCache.find(node.id);
+    if (it != _relationCache.end()) {
+        const auto& relInfo = it->second;
+        NodeRelations relations;
+        relations.hasMixedRelations = !relInfo.andNodes.empty() && !relInfo.orNodes.empty();
+        
+        // Convert sets to vectors
+        relations.andNodes.assign(relInfo.andNodes.begin(), relInfo.andNodes.end());
+        relations.orNodes.assign(relInfo.orNodes.begin(), relInfo.orNodes.end());
+        
+        // Convert sole nodes
+        for (const auto& soleId : relInfo.soleNodes) {
+            const SituationRelation* relation = _sg.getRelation(soleId, node.id);
+            if (!relation) {
+                relation = _sg.getRelation(node.id, soleId);
+            }
+            if (relation) {
+                relations.soleNodes.emplace_back(soleId, relation);
             }
         }
-    };
-    
-    // Check causes
-    for (const auto& cause : node.causes) {
-        const SituationRelation* relation = _sg.getRelation(cause, node.id);
-        classifyNode(cause, relation);
+        
+        // Determine relation type
+        if (relations.andNodes.empty() && relations.orNodes.empty() && relations.soleNodes.empty()) {
+            relations.type = RelationType::NONE;
+        } else if (relations.andNodes.empty() && relations.orNodes.empty() && relations.soleNodes.size() == 1) {
+            relations.type = RelationType::SOLE;
+        } else if (!relations.andNodes.empty() && relations.orNodes.empty() && relations.soleNodes.empty()) {
+            relations.type = RelationType::AND_ONLY;
+        } else if (relations.andNodes.empty() && !relations.orNodes.empty() && relations.soleNodes.empty()) {
+            relations.type = RelationType::OR_ONLY;
+        } else {
+            relations.type = RelationType::MIXED;
+        }
+        
+        return relations;
     }
     
-    // Check evidences
-    for (const auto& evidence : node.evidences) {
-        const SituationRelation* relation = _sg.getRelation(node.id, evidence);
-        classifyNode(evidence, relation);
-    }
-    
-    // Determine the relation type
-    if (relations.andNodes.empty() && relations.orNodes.empty() && relations.soleNodes.empty()) {
-        relations.type = RelationType::NONE;
-    } else if (relations.andNodes.empty() && relations.orNodes.empty() && relations.soleNodes.size() == 1) {
-        relations.type = RelationType::SOLE;
-    } else if (!relations.andNodes.empty() && relations.orNodes.empty() && relations.soleNodes.empty()) {
-        relations.type = RelationType::AND_ONLY;
-    } else if (relations.andNodes.empty() && !relations.orNodes.empty() && relations.soleNodes.empty()) {
-        relations.type = RelationType::OR_ONLY;
-    } else {
-        relations.type = RelationType::MIXED;
-    }
-    
-    return relations;
+    // Return empty relations if node not found in cache
+    NodeRelations emptyRelations;
+    emptyRelations.type = RelationType::NONE;
+    emptyRelations.hasMixedRelations = false;
+    return emptyRelations;
 }
 
 void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, const NodeRelations& relations) {
@@ -369,10 +356,10 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
         
         case RelationType::SOLE: {
             auto [connectedId, relation] = relations.soleNodes[0];
+            double weight = _weightCache[{connectedId, node.id}];
             std::string connectedName = std::to_string(connectedId);
             if (_nodeMap.find(connectedName) == _nodeMap.end()) return;
             unsigned long connectedIdx = _nodeMap[connectedName];
-            double w = relation->weight;
             
             assignment a;
             a.clear();
@@ -381,8 +368,8 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
             dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);    // P(A|NOT B) = 0
             
             a[connectedIdx] = 1;     // B = true
-            dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0-w);  // P(NOT A|B) = 1-w
-            dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, w);      // P(A|B) = w
+            dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0-weight);  // P(NOT A|B) = 1-w
+            dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, weight);      // P(A|B) = w
             break;
         }
         
@@ -426,10 +413,8 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
                     unsigned long idx = _nodeMap[nodeName];
                     if (and_assignment[idx] == 1) {
                         hasTriggeredParent = true;
-                        const SituationRelation* relation = _sg.getRelation(andNode, node.id);
-                        if (relation) {
-                            weights.push_back(relation->weight);
-                        }
+                        double weight = _weightCache[{andNode, node.id}];
+                        weights.push_back(weight);
                     } else {
                         allParentsTriggered = false;
                     }
@@ -489,19 +474,15 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
                     unsigned long idx = _nodeMap[nodeName];
                     if (or_assignment[idx] == 1) {
                         hasTriggeredParent = true;
-                        const SituationRelation* relation = _sg.getRelation(orNode, node.id);
-                        if (relation) {
-                            weights.push_back(relation->weight);
-                        }
+                        double weight = _weightCache[{orNode, node.id}];
+                        weights.push_back(weight);
                     }
                 }
                 
                 if (!hasTriggeredParent) {
-                    // No parents are triggered -> node is untriggered
                     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, or_assignment, 1.0);
                     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, or_assignment, 0.0);
                 } else {
-                    // At least one parent is triggered -> calculate probability
                     double not_prob = 1.0;
                     for (double w : weights) {
                         not_prob *= (1.0 - w);
@@ -850,57 +831,6 @@ void BNInferenceEngine::buildJoinTree() {
     }
 }
 
-void BNInferenceEngine::convertGraphToBN(const SituationGraph& sg) {
-    // Clear existing network if any
-    _bn.reset(new bayes_network());
-    _nodeMap.clear();
-    _sg = sg;
-
-    // First pass: Create nodes for each SituationNode
-    for (const auto& [id, node] : sg.situationMap) {
-        unsigned long nodeIdx = _bn->add_node();
-        _nodeMap[std::to_string(id)] = nodeIdx;
-        dlib::bayes_node_utils::set_node_num_values(*_bn, nodeIdx, 2);  // Binary nodes (0 or 1)
-    }
-
-    // Second pass: Add edges and construct CPTs
-    for (const auto& [id, node] : sg.situationMap) {
-        unsigned long childIdx = _nodeMap[std::to_string(id)];
-        
-        // Add edges from causes (same layer)
-        for (const auto& causeId : node.causes) {
-            if (_nodeMap.find(std::to_string(causeId)) != _nodeMap.end()) {
-                unsigned long parentIdx = _nodeMap[std::to_string(causeId)];
-                _bn->add_edge(parentIdx, childIdx);
-            }
-        }
-        
-        // Add edges from evidences (layer below)
-        for (const auto& evidenceId : node.evidences) {
-            if (_nodeMap.find(std::to_string(evidenceId)) != _nodeMap.end()) {
-                unsigned long parentIdx = _nodeMap[std::to_string(evidenceId)];
-                _bn->add_edge(parentIdx, childIdx);
-            }
-        }
-        
-        // Create a temporary instance map with default instances for all nodes
-        std::map<long, SituationInstance> tempInstanceMap;
-        for (const auto& [nodeId, _] : sg.situationMap) {
-            SituationInstance instance;
-            instance.id = nodeId;
-            instance.state = SituationInstance::UNDETERMINED;
-            instance.beliefValue = 0.5;  // Default belief value
-            tempInstanceMap[nodeId] = instance;
-        }
-        
-        // Construct CPT for this node
-        constructCPT(node, tempInstanceMap);
-    }
-    
-    // Build join tree for inference
-    buildJoinTree();
-}
-
 void BNInferenceEngine::printNetwork(std::ostream& out) const {
     if (!_bn) {
         out << "Bayesian Network is not initialized." << std::endl;
@@ -1013,6 +943,65 @@ void BNInferenceEngine::printProbabilities(std::ostream& out) const {
             }
         }
         out << std::endl;
+    }
+}
+
+void BNInferenceEngine::initializeCaches(std::map<long, SituationInstance>& instanceMap) {
+    // Clear existing caches
+    _nodeCache.clear();
+    _relationCache.clear();
+    _stateCache.clear();
+    _weightCache.clear();
+    
+    // Cache all nodes
+    for (const auto& [nodeId, node] : _sg.situationMap) {
+        _nodeCache[nodeId] = node;
+        
+        // Initialize relation info for this node
+        RelationInfo& relInfo = _relationCache[nodeId];
+        
+        // Process causes
+        for (const auto& cause : node.causes) {
+            const SituationRelation* relation = _sg.getRelation(cause, nodeId);
+            if (relation) {
+                if (relation->relation == SituationRelation::AND) {
+                    relInfo.andNodes.insert(cause);
+                } else if (relation->relation == SituationRelation::OR) {
+                    relInfo.orNodes.insert(cause);
+                } else if (relation->relation == SituationRelation::SOLE) {
+                    relInfo.soleNodes.insert(cause);
+                }
+                _weightCache[{cause, nodeId}] = relation->weight;
+            }
+        }
+        
+        // Process evidences
+        for (const auto& evidence : node.evidences) {
+            const SituationRelation* relation = _sg.getRelation(nodeId, evidence);
+            if (relation) {
+                if (relation->relation == SituationRelation::AND) {
+                    relInfo.andNodes.insert(evidence);
+                } else if (relation->relation == SituationRelation::OR) {
+                    relInfo.orNodes.insert(evidence);
+                } else if (relation->relation == SituationRelation::SOLE) {
+                    relInfo.soleNodes.insert(evidence);
+                }
+                _weightCache[{nodeId, evidence}] = relation->weight;
+            }
+        }
+        
+        // Pre-compute relations for the node
+        relInfo.relations = analyzeNodeRelations(node);
+        
+        // Cache instance state if available
+        auto instIt = instanceMap.find(nodeId);
+        if (instIt != instanceMap.end()) {
+            const auto& instance = instIt->second;
+            std::vector<std::pair<std::string, SituationInstance::State>> states;
+            // Store the current state
+            states.emplace_back("state", instance.state);
+            _stateCache[nodeId] = states;
+        }
     }
 }
 

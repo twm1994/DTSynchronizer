@@ -101,6 +101,9 @@ private:
     
     std::shared_ptr<ReasonerLogger> _logger;
     
+    // Maps node ID to its M,N node IDs for mixed relation handling
+    std::map<long, std::pair<long, long>> _mixedNodeInfo;
+    
     void addNode(const std::string& name, const SituationNode& node);
     void addEdge(const std::string& parentName, const std::string& childName, double weight);
     void buildJoinTree();
@@ -126,14 +129,31 @@ protected:
     std::vector<unsigned long> getChildren(unsigned long nodeIdx) const;
     double normalizeWeight(double weight) const;
     double calculateAndProbability(const SituationNode& node,
-                                 const std::vector<long>& nodes);
+                               const std::vector<long>& nodes);
     double calculateOrProbability(const SituationNode& node,
-                                const std::vector<long>& nodes);
+                              const std::vector<long>& nodes);
     bool determineNodeState(const SituationNode& node,
                           SituationInstance& instance,
                           const std::map<long, SituationInstance>& instanceMap);
     std::set<const SituationNode*> findConnectedNodes(const SituationNode& node);
     CausalConnection findCausallyConnectedNodes(const std::map<long, SituationInstance>& instanceMap);
+    
+    /**
+     * Complete the subgraph for a node with mixed relations (case 5)
+     * Creates M and N nodes and updates edges accordingly
+     */
+    void completeMixedRelationSubgraph(long nodeId, DirectedGraph& causalDGraph, 
+                                     const NodeRelations& relations,
+                                     std::map<long, std::pair<long, long>>& mixedNodeInfo);
+    
+    /**
+     * Construct CPT for a node with mixed relations (case 5)
+     * Uses M and N nodes with AND connection
+     */
+    void constructMixedRelationCPT(const SituationNode& node, 
+                                 const std::pair<long, long>& mnNodes,
+                                 const std::map<long, SituationInstance>& instanceMap);
+
     std::pair<dlib::set<long>::kernel_1a, dlib::set<std::pair<long, long>>::kernel_1a>
     discoverCausalStructure(const std::map<long, SituationInstance>& instanceMap);
     void calculateBeliefs(std::map<long, SituationInstance>& instanceMap, simtime_t current);

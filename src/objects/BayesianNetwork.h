@@ -63,6 +63,9 @@ public:
     void clearSolution();
     BayesianNetwork();
     virtual ~BayesianNetwork();
+
+    // Print the network structure including nodes and edges
+    void printNetwork() const;
 };
 
 #endif /* OBJECTS_BAYESIANNETWORK_H_ */

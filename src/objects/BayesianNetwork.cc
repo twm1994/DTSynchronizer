@@ -135,3 +135,54 @@ void BayesianNetwork::clearSolution() {
     }
     BNet.clear();
 }
+
+void BayesianNetwork::printNetwork() const {
+    std::cout << "\n=== Bayesian Network Structure ===\n";
+    
+    // Print nodes
+    std::cout << "\nNodes (" << BNet.number_of_nodes() << "):\n";
+    for (unsigned long i = 0; i < BNet.number_of_nodes(); ++i) {
+        std::cout << "Node " << i;
+        
+        // Print parents
+        std::vector<unsigned long> parents;
+        for (unsigned long j = 0; j < BNet.number_of_nodes(); ++j) {
+            if (BNet.has_edge(j, i)) {
+                parents.push_back(j);
+            }
+        }
+        if (!parents.empty()) {
+            std::cout << " <- Parents: ";
+            for (unsigned long p : parents) {
+                std::cout << p << " ";
+            }
+        }
+        
+        // Print children
+        std::vector<unsigned long> children;
+        for (unsigned long j = 0; j < BNet.number_of_nodes(); ++j) {
+            if (BNet.has_edge(i, j)) {
+                children.push_back(j);
+            }
+        }
+        if (!children.empty()) {
+            std::cout << " -> Children: ";
+            for (unsigned long c : children) {
+                std::cout << c << " ";
+            }
+        }
+        std::cout << std::endl;
+    }
+    
+    // Print edges
+    std::cout << "\nEdges:\n";
+    for (unsigned long i = 0; i < BNet.number_of_nodes(); ++i) {
+        for (unsigned long j = 0; j < BNet.number_of_nodes(); ++j) {
+            if (BNet.has_edge(i, j)) {
+                std::cout << i << " -> " << j << std::endl;
+            }
+        }
+    }
+    
+    std::cout << "\n==============================\n" << std::endl;
+}

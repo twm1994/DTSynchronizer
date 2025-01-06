@@ -25,7 +25,7 @@
 Define_Module(EventSource);
 
 EventSource::EventSource(){
-    MAX_COUNT = 4;
+    MAX_TRIGGER_LIMIT = 4;
     toltalOperations = 0;
     toltalSituations = 0;    
     /*
@@ -64,7 +64,7 @@ void EventSource::finish() {
 void EventSource::handleMessage(cMessage *msg) {
     if (msg->isName(msg::EG_TIMEOUT)) {
         simtime_t current = simTime();
-        vector<PhysicalOperation> operations = sa.arrange(MAX_COUNT, current);
+        vector<PhysicalOperation> operations = sa.arrange(MAX_TRIGGER_LIMIT, current);
         int operationCount = operations.size();
         int situationCount = 0;
         for(auto operation : operations){

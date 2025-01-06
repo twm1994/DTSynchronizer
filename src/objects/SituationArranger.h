@@ -34,7 +34,7 @@ private:
     set<long> tOpStiuations;
 public:
     SituationArranger();
-    vector<PhysicalOperation> arrange(int max_count, simtime_t current);
+    vector<PhysicalOperation> arrange(int max_trigger_limit, simtime_t current);
     virtual ~SituationArranger();
 };
 

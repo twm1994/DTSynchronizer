@@ -33,7 +33,7 @@ using json = nlohmann::json;
 class EventSource: public cSimpleModule {
 private:
     // specify the maximal situation counter value;
-    int MAX_COUNT;
+    int MAX_TRIGGER_LIMIT;
     simtime_t min_event_cycle;
     // event generation timeout
     cMessage* EGTimeout;

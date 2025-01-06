@@ -169,6 +169,7 @@ void Synchronizer::handleMessage(cMessage *msg) {
 
         for (auto bufferCounter : bufferCounters) {
             if (bufferCounter.second > 0) {
+                cout << "triggered ID " << bufferCounter.first << ", counter " << bufferCounter.second << endl;                
                 triggered.insert(bufferCounter.first);
                 bufferCounters[bufferCounter.first]--;
             }

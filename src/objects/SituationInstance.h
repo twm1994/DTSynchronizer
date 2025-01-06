@@ -33,6 +33,7 @@ public:
      */
     enum State {
         UNTRIGGERED,    // Situation is not active
+        TRIGGERING,     // Situation is being triggered
         TRIGGERED,      // Situation is active
         UNDETERMINED    // Situation state is unknown
     };

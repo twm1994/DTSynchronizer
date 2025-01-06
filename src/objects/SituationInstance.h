@@ -41,7 +41,7 @@ public:
     };
     long id;                      // Unique identifier
     int counter;                  // Occurrence counter
-    vector<State> stateBuffer;    // Buffer for state calculations
+    std::vector<State> stateBuffer;    // Buffer for state calculations
     simtime_t duration;          // Duration of the situation
     simtime_t cycle;             // Cycle time of the situation    
     Type type;

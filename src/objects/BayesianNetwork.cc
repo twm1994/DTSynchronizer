@@ -90,6 +90,40 @@ void BayesianNetwork::buildSolution(std::map<long, long> evidences) {
     solution_with_evidence = new bayesian_network_join_tree(BNet, join_tree);
 }
 
+void BayesianNetwork::buildBNGraph(std::set<long> nodes, std::set<std::pair<long, long>> edges) {
+    BNet.set_number_of_nodes(nodes.size());
+    // Initialize all nodes first before adding edges
+    for (auto node : nodes) {
+        set_node_num_values(BNet, node, 2);
+    }
+    // Add edges
+    for (auto edge : edges) {
+        long src = edge.first;
+        long dest = edge.second;
+        BNet.add_edge(src, dest);
+    }
+}
+
+void BayesianNetwork::buildCPT(std::map<std::tuple<long, long, std::set<std::pair<long, long>>>, double> CPT) {
+    for (auto entry : CPT) {
+        long c_id = std::get<0>(entry.first);
+        long c_state = std::get<1>(entry.first);
+        std::set<std::pair<long, long>> causes = std::get<2>(entry.first);
+        double p = entry.second;
+        assignment parent_state;
+        if (causes.size() > 0) {
+            for (auto cause : causes) {
+                long id = cause.first;
+                long p_state = cause.second;
+                parent_state.add(id, p_state);
+            }
+        }
+        set_node_probability(BNet, c_id, c_state, parent_state, p);
+        // Clear out parent state so that it doesn't have any of the previous assignment
+        parent_state.clear();
+    }
+}
+
 double BayesianNetwork::getProbability(long node, long state) {
     return solution_with_evidence->probability(node)(state);
 }

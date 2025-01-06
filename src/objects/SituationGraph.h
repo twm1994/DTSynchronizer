@@ -39,14 +39,14 @@ class SituationEvolution;
 class SituationGraph {
 private:
     // Reachability index
-    vector<vector<bool>>* ri;
+    std::vector<std::vector<bool>>* ri;
 public:
-    map<long, SituationNode> situationMap;
+    std::map<long, SituationNode> situationMap;
     typedef pair<long, long> edge_id;
-    map<edge_id, SituationRelation> relationMap;
-    vector<DirectedGraph> layers;
+    std::map<edge_id, SituationRelation> relationMap;
+    std::vector<DirectedGraph> layers;
 private:
-    void buildReachabilityMatrix(set<long>& vertices, set<edge_id>& edges);
+    void buildReachabilityMatrix(std::set<long>& vertices, std::set<edge_id>& edges);
 
 public:
     SituationGraph();
@@ -54,8 +54,8 @@ public:
     SituationGraph& operator=(const SituationGraph& other);
     SituationGraph(SituationGraph&&) = default;
     SituationGraph& operator=(SituationGraph&&) = default;
-    vector<long> getAllOperationalSitutions();
-    vector<long> getOperationalSitutions(long topNodeId);
+    std::vector<long> getAllOperationalSitutions();
+    std::vector<long> getOperationalSitutions(long topNodeId);
     bool isReachable(long src, long dest);
     void loadModel(const std::string &filename, SituationEvolution* se);
     DirectedGraph getLayer(int index) const;

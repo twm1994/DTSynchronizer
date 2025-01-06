@@ -18,8 +18,8 @@ public:
     // index in a directed graph for reachability query
     int index;
     double threshold;
-    vector<long> causes;
-    vector<long> evidences;
+    std::vector<long> causes;
+    std::vector<long> evidences;
 public:
     SituationNode();
     virtual ~SituationNode();

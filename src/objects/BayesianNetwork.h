@@ -41,6 +41,20 @@ public:
     void BuildNetwork(long node_count, std::set<std::pair<long, long>> edges,
             std::map<std::tuple<long, long, std::set<std::pair<long, long>>>,
                     double> CPT);
+
+    /*
+     * Build a Bayesian Network graph from a set of nodes and edges.
+     * @param nodes: A set of node IDs
+     * @param edges: A set of <src, dest> pairs
+     */
+    void buildBNGraph(std::set<long> nodes, std::set<std::pair<long, long>> edges);
+
+    /*
+     * Construct the CPT of the Bayesian Network
+     * @param CPT: A map from a tuple of <child, child_state, set<parent, parent_state>> to a probability
+     */
+    void buildCPT(std::map<std::tuple<long, long, std::set<std::pair<long, long>>>, double> CPT);
+
     /*
      * An evidence is in the format of <node ID, state>, where state is either 0 or 1.
      */

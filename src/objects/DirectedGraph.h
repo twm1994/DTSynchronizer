@@ -28,8 +28,8 @@ using namespace std;
 
 class DirectedGraph {
 private:
-    map<long, vector<long> > adjList; // Adjacency list to store the graph
-    set<long> verList;
+    std::map<long, std::vector<long> > adjList; // Adjacency list to store the graph
+    std::set<long> verList;
 
     void DFS_topological(unordered_map<long, bool> &visited, stack<long> &st, long node);
 
@@ -63,9 +63,9 @@ public:
     }
     
     //Function to return list containing vertices in Topological order.
-    vector<long> topo_sort();
-    const set<long>& getVertices() const { return verList; }
-    const vector<long>& getAdjacencyList(long id) const { return adjList.at(id); }
+    std::vector<long> topo_sort();
+    const std::set<long>& getVertices() const { return verList; }
+    const std::vector<long>& getAdjacencyList(long id) const { return adjList.at(id); }
     virtual ~DirectedGraph();
 };
 

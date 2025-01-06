@@ -24,7 +24,7 @@ using namespace omnetpp;
 using namespace dlib;
 using namespace dlib::bayes_node_utils;
 
-BNInferenceEngine::BNInferenceEngine() : _bn(std::make_unique<bn_type>()), _joinTree(nullptr), _solution(nullptr) {}
+BNInferenceEngine::BNInferenceEngine() : _BNet(std::make_unique<BayesianNetwork>()), _bn(std::make_unique<bn_type>()), _joinTree(nullptr), _solution(nullptr) {}
 
 BNInferenceEngine::~BNInferenceEngine() = default;
 
@@ -159,9 +159,33 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
             continue;
         }
     }
+
+    // Build the Bayesian network
+    std::set<long> nodes;
+    std::set<std::pair<long, long>> edges;
     
+    // Add all vertices
+    for (const auto& vertex : vertices) {
+        nodes.insert(vertex);
+    }
+    
+    // Add all edges
+    for (const auto& vertex : vertices) {
+        try {
+            const auto& adjList = causalDGraph.getAdjacencyList(vertex);
+            for (const auto& dest : adjList) {
+                edges.insert(std::make_pair(vertex, dest));
+            }
+        } catch (const std::out_of_range&) {
+            continue;
+        }
+    }
+    
+    _BNet->buildBNGraph(nodes, edges);
+
     // Step 6: Construct CPTs for the Bayesian Network
     std::cout << "Constructing Conditional Probability Tables..." << std::endl;
+
     for (const auto& [nodeId, instance] : causalInstanceMap) {
         auto nodeIt = _nodeCache.find(nodeId);
         if (nodeIt == _nodeCache.end()) continue;
@@ -175,7 +199,7 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
             constructCPT(node, causalInstanceMap);
         }
     }
-    
+    _BNet->buildCPT(cptCache);
     std::cout << "Bayesian Network Model loading complete.\n" << std::endl;
 }
 
@@ -351,6 +375,13 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
             empty_assignment.clear();
             dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, empty_assignment, 1.0);
             dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, empty_assignment, 0.0);
+
+            // Create a tuple with an empty assignment
+            std::set<std::pair<long, long>> empty_set;
+            std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, empty_set);
+            cptCache[setting_0] = 1.0;
+            std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, empty_set);
+            cptCache[setting_1] = 0.0;
             break;
         }
         
@@ -364,12 +395,28 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
             assignment a;
             a.clear();
             a.add(connectedIdx, 0);  // B = false
-            dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0);    // P(NOT A|NOT B) = 1
-            dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);    // P(A|NOT B) = 0
-            
+            dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0);  // P(NOT A|NOT B) = 1
+            dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);  // P(A|NOT B) = 0
+
+            // Create a tuple with a single parent-state pair
+            std::set<std::pair<long, long>> parent_set_false;
+            parent_set_false.insert(std::make_pair(connectedIdx, 0));
+            std::tuple<long, long, std::set<std::pair<long, long>>> setting_false_0(nodeIdx, 0, parent_set_false);
+            cptCache[setting_false_0] = 1.0;
+            std::tuple<long, long, std::set<std::pair<long, long>>> setting_false_1(nodeIdx, 1, parent_set_false);
+            cptCache[setting_false_1] = 0.0;
+
             a[connectedIdx] = 1;     // B = true
             dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0-weight);  // P(NOT A|B) = 1-w
             dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, weight);      // P(A|B) = w
+
+            // Create a tuple with a single parent-state pair
+            std::set<std::pair<long, long>> parent_set_true;
+            parent_set_true.insert(std::make_pair(connectedIdx, 1));
+            std::tuple<long, long, std::set<std::pair<long, long>>> setting_true_0(nodeIdx, 0, parent_set_true);
+            cptCache[setting_true_0] = 1.0-weight;
+            std::tuple<long, long, std::set<std::pair<long, long>>> setting_true_1(nodeIdx, 1, parent_set_true);
+            cptCache[setting_true_1] = weight;
             break;
         }
         
@@ -389,6 +436,13 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
                 empty_assignment.clear();
                 dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, empty_assignment, 1.0);
                 dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, empty_assignment, 0.0);
+                
+                // Create a tuple with an empty assignment
+                std::set<std::pair<long, long>> empty_set;
+                std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, empty_set);
+                cptCache[setting_0] = 1.0;
+                std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, empty_set);
+                cptCache[setting_1] = 0.0;
                 break;
             }
             
@@ -420,9 +474,23 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
                     }
                 }
                 
+                // Create set of parent assignments for cptCache
+                std::set<std::pair<long, long>> parent_states;
+                for (const auto& andNode : relations.andNodes) {
+                    std::string nodeName = std::to_string(andNode);
+                    unsigned long idx = _nodeMap[nodeName];
+                    parent_states.insert(std::make_pair(andNode, and_assignment[idx]));
+                }
+                
                 if (!hasTriggeredParent || !allParentsTriggered) {
                     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, and_assignment, 1.0);
                     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, and_assignment, 0.0);
+                    
+                    // Add to cptCache
+                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, parent_states);
+                    cptCache[setting_0] = 1.0;
+                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, parent_states);
+                    cptCache[setting_1] = 0.0;
                 } else {
                     double prob = 1.0;
                     for (double w : weights) {
@@ -430,6 +498,12 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
                     }
                     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, and_assignment, 1.0-prob);
                     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, and_assignment, prob);
+                    
+                    // Add to cptCache
+                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, parent_states);
+                    cptCache[setting_0] = 1.0-prob;
+                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, parent_states);
+                    cptCache[setting_1] = prob;
                 }
             } while(dlib::bayes_node_utils::node_next_parent_assignment(*_bn, nodeIdx, and_assignment));
             break;
@@ -451,6 +525,13 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
                 empty_assignment.clear();
                 dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, empty_assignment, 1.0);
                 dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, empty_assignment, 0.0);
+
+                // Create a tuple with an empty assignment
+                std::set<std::pair<long, long>> empty_set;
+                std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, empty_set);
+                cptCache[setting_0] = 1.0;
+                std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, empty_set);
+                cptCache[setting_1] = 0.0;
                 break;
             }
             
@@ -478,10 +559,24 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
                         weights.push_back(weight);
                     }
                 }
+
+                // Create set of parent assignments for cptCache
+                std::set<std::pair<long, long>> parent_states;
+                for (const auto& orNode : relations.orNodes) {
+                    std::string nodeName = std::to_string(orNode);
+                    unsigned long idx = _nodeMap[nodeName];
+                    parent_states.insert(std::make_pair(orNode, or_assignment[idx]));
+                }
                 
                 if (!hasTriggeredParent) {
                     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, or_assignment, 1.0);
                     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, or_assignment, 0.0);
+                    
+                    // Add to cptCache
+                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, parent_states);
+                    cptCache[setting_0] = 1.0;
+                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, parent_states);
+                    cptCache[setting_1] = 0.0;
                 } else {
                     double not_prob = 1.0;
                     for (double w : weights) {
@@ -489,6 +584,12 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
                     }
                     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, or_assignment, not_prob);
                     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, or_assignment, 1.0-not_prob);
+                    
+                    // Add to cptCache
+                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, parent_states);
+                    cptCache[setting_0] = not_prob;
+                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, parent_states);
+                    cptCache[setting_1] = 1.0-not_prob;
                 }
             } while(dlib::bayes_node_utils::node_next_parent_assignment(*_bn, nodeIdx, or_assignment));
             break;
@@ -1014,7 +1115,7 @@ void BNInferenceEngine::constructMixedRelationCPT(const SituationNode& node,
     unsigned long nodeIdx = _nodeMap[nodeName];                                                
     const long& mNodeId = mnNodes.first;
     const long& nNodeId = mnNodes.second;
-    
+
     // First set CPT for S based on M,N nodes (AND relation)
     // P(S|M,N) has 8 combinations as specified
     assignment a;
@@ -1026,6 +1127,13 @@ void BNInferenceEngine::constructMixedRelationCPT(const SituationNode& node,
     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 1.0);    // P(S|M,N) = 1
     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 0.0);    // P(NOT S|M,N) = 0
     
+    // Add to cptCache - M=1, N=1
+    std::set<std::pair<long, long>> mn_true;
+    mn_true.insert(std::make_pair(mNodeId, 1));
+    mn_true.insert(std::make_pair(nNodeId, 1));
+    cptCache[std::make_tuple(nodeIdx, 1, mn_true)] = 1.0;
+    cptCache[std::make_tuple(nodeIdx, 0, mn_true)] = 0.0;
+
     // Case M=1, N=0
     a.clear();
     a.add(mNodeId, 1);  // M = true
@@ -1033,6 +1141,13 @@ void BNInferenceEngine::constructMixedRelationCPT(const SituationNode& node,
     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);    // P(S|M,NOT N) = 0
     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0);    // P(NOT S|M,NOT N) = 1
     
+    // Add to cptCache - M=1, N=0
+    std::set<std::pair<long, long>> mn_10;
+    mn_10.insert(std::make_pair(mNodeId, 1));
+    mn_10.insert(std::make_pair(nNodeId, 0));
+    cptCache[std::make_tuple(nodeIdx, 1, mn_10)] = 0.0;
+    cptCache[std::make_tuple(nodeIdx, 0, mn_10)] = 1.0;
+
     // Case M=0, N=1
     a.clear();
     a.add(mNodeId, 0);  // M = false
@@ -1040,6 +1155,13 @@ void BNInferenceEngine::constructMixedRelationCPT(const SituationNode& node,
     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);    // P(S|NOT M,N) = 0
     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0);    // P(NOT S|NOT M,N) = 1
     
+    // Add to cptCache - M=0, N=1
+    std::set<std::pair<long, long>> mn_01;
+    mn_01.insert(std::make_pair(mNodeId, 0));
+    mn_01.insert(std::make_pair(nNodeId, 1));
+    cptCache[std::make_tuple(nodeIdx, 1, mn_01)] = 0.0;
+    cptCache[std::make_tuple(nodeIdx, 0, mn_01)] = 1.0;
+
     // Case M=0, N=0
     a.clear();
     a.add(mNodeId, 0);  // M = false
@@ -1047,6 +1169,13 @@ void BNInferenceEngine::constructMixedRelationCPT(const SituationNode& node,
     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 1, a, 0.0);    // P(S|NOT M,NOT N) = 0
     dlib::bayes_node_utils::set_node_probability(*_bn, nodeIdx, 0, a, 1.0);    // P(NOT S|NOT M,NOT N) = 1
     
+    // Add to cptCache - M=0, N=0
+    std::set<std::pair<long, long>> mn_false;
+    mn_false.insert(std::make_pair(mNodeId, 0));
+    mn_false.insert(std::make_pair(nNodeId, 0));
+    cptCache[std::make_tuple(nodeIdx, 1, mn_false)] = 0.0;
+    cptCache[std::make_tuple(nodeIdx, 0, mn_false)] = 1.0;
+
     // Get relations for M and N nodes
     NodeRelations relations = analyzeNodeRelations(node);
     
@@ -1114,6 +1243,11 @@ void BNInferenceEngine::completeMixedRelationSubgraph(long nodeId, DirectedGraph
     
     // Store M,N node info for later CPT construction
     mixedNodeInfo[nodeId] = std::make_pair(mNodeId, nNodeId);
+    
+    // Create relation info for M and N nodes
+    RelationInfo mRelInfo, nRelInfo;
+    mRelInfo.relations.type = RelationType::AND_ONLY;
+    nRelInfo.relations.type = RelationType::OR_ONLY;
     
     // Update edges: AND nodes -> M, OR nodes -> N
     // Redirect AND node edges to M

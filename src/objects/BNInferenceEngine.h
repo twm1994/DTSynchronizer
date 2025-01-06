@@ -12,6 +12,7 @@
 #include <dlib/bayes_utils.h>
 #include <dlib/set.h>
 
+#include "BayesianNetwork.h"
 #include "SituationGraph.h"
 #include "SituationNode.h"
 #include "SituationInstance.h"
@@ -93,6 +94,8 @@ private:
     
     SituationGraph _sg;
     std::unique_ptr<bn_type> _bn;
+    std::unique_ptr<BayesianNetwork> _BNet;
+    std::map<std::tuple<long, long, std::set<std::pair<long, long>>>, double> cptCache;
     std::map<std::string, unsigned long> _nodeMap;
     std::unique_ptr<join_tree_type> _joinTree;
     

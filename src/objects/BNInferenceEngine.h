@@ -7,10 +7,6 @@
 #include <vector>
 #include <set>
 #include <utility>
-#include <dlib/directed_graph.h>
-#include <dlib/graph_utils.h>
-#include <dlib/bayes_utils.h>
-#include <dlib/set.h>
 
 #include "BayesianNetwork.h"
 #include "SituationGraph.h"
@@ -19,49 +15,6 @@
 #include "SituationRelation.h"
 #include "OperationalEvent.h"
 #include "../utils/ReasonerLogger.h"
-
-using namespace dlib;
-using namespace dlib::bayes_node_utils;
-
-// Custom comparison operators for dlib sets
-namespace dlib {
-    template<typename T, typename alloc>
-    bool operator==(const set_kernel_1<T,alloc>& lhs, const set_kernel_1<T,alloc>& rhs) {
-        if (lhs.size() != rhs.size()) return false;
-        
-        // Manual element comparison since we can't use iterators directly
-        bool equal = true;
-        lhs.reset();
-        T item;
-        while (lhs.move_next()) {
-            item = lhs.element();
-            if (!rhs.is_member(item)) {
-                equal = false;
-                break;
-            }
-        }
-        return equal;
-    }
-    
-    template<typename T, typename alloc>
-    bool operator<(const set_kernel_1<T,alloc>& lhs, const set_kernel_1<T,alloc>& rhs) {
-        if (lhs.size() >= rhs.size()) return false;
-        
-        bool is_subset = true;
-        lhs.reset();
-        T item;
-        while (lhs.move_next()) {
-            item = lhs.element();
-            if (!rhs.is_member(item)) {
-                is_subset = false;
-                break;
-            }
-        }
-        return is_subset;
-    }
-}
-
-using bayes_network = dlib::directed_graph<dlib::bayes_node>::kernel_1a_c;
 
 struct CausalConnection {
     std::set<const SituationNode*> nodes;
@@ -88,16 +41,11 @@ struct NodeRelations {
 
 class BNInferenceEngine {
 private:
-    typedef dlib::set<unsigned long>::kernel_1a set_type;
-    typedef bayes_network bn_type;
-    typedef dlib::graph<set_type, set_type>::kernel_1a_c join_tree_type;
-    
+ 
     SituationGraph _sg;
-    std::unique_ptr<bn_type> _bn;
     std::unique_ptr<BayesianNetwork> _BNet;
     std::map<std::tuple<long, long, std::set<std::pair<long, long>>>, double> cptCache;
     std::map<std::string, unsigned long> _nodeMap;
-    std::unique_ptr<join_tree_type> _joinTree;
     
     // Solution object for inference
     std::unique_ptr<dlib::bayesian_network_join_tree> _solution;
@@ -131,14 +79,6 @@ private:
     };
     std::unordered_map<EdgeKey, double, EdgeKeyHash> _weightCache;  // (srcID, destID) -> weight
 
-    void addNode(const std::string& name, const SituationNode& node);
-    void addEdge(const std::string& parentName, const std::string& childName, double weight);
-    void buildJoinTree();
-    void setNodeValue(const std::string& name, unsigned long value);
-    void setNodeAsEvidence(const std::string& name);
-    std::vector<double> getPosterior(const std::string& name);
-    bool areNodesConnected(unsigned long node1, unsigned long node2) const;
-
     // Helper functions for d-separation
     bool isCollider(unsigned long node, const std::vector<unsigned long>& path) const;
     bool isActive(unsigned long node, const std::set<unsigned long>& conditioningSet, 
@@ -154,14 +94,7 @@ private:
 protected:
     std::vector<unsigned long> getParents(unsigned long nodeIdx) const;
     std::vector<unsigned long> getChildren(unsigned long nodeIdx) const;
-    double normalizeWeight(double weight) const;
-    double calculateAndProbability(const SituationNode& node,
-                               const std::vector<long>& nodes);
-    double calculateOrProbability(const SituationNode& node,
-                              const std::vector<long>& nodes);
-    bool determineNodeState(const SituationNode& node,
-                          SituationInstance& instance,
-                          const std::map<long, SituationInstance>& instanceMap);
+
     std::set<const SituationNode*> findConnectedNodes(const SituationNode& node);
     CausalConnection findCausallyConnectedNodes(const std::map<long, SituationInstance>& instanceMap);
     
@@ -181,9 +114,7 @@ protected:
                                  const std::pair<long, long>& mnNodes,
                                  const std::map<long, SituationInstance>& instanceMap);
 
-    std::pair<dlib::set<long>::kernel_1a, dlib::set<std::pair<long, long>>::kernel_1a>
-    discoverCausalStructure(const std::map<long, SituationInstance>& instanceMap);
-    void calculateBeliefs(std::map<long, SituationInstance>& instanceMap, simtime_t current);
+    // void calculateBeliefs(std::map<long, SituationInstance>& instanceMap, simtime_t current);
     std::vector<unsigned long> getDescendants(unsigned long node) const;
     virtual void constructCPT(const SituationNode& node,
                      const std::map<long, SituationInstance>& instanceMap);
@@ -215,10 +146,44 @@ public:
                std::map<long, SituationInstance> &instanceMap,
                simtime_t current,
                std::shared_ptr<ReasonerLogger> logger = nullptr);
-    
-    // Print functions
-    void printNetwork(std::ostream& out = std::cout) const;
-    void printProbabilities(std::ostream& out = std::cout) const;
 };
+
+// Custom comparison operators for dlib sets
+// namespace dlib {
+//     template<typename T, typename alloc>
+//     bool operator==(const set_kernel_1<T,alloc>& lhs, const set_kernel_1<T,alloc>& rhs) {
+//         if (lhs.size() != rhs.size()) return false;
+        
+//         // Manual element comparison since we can't use iterators directly
+//         bool equal = true;
+//         set_kernel_1<T,alloc> temp_lhs(lhs); // Create copies to avoid modifying originals
+//         T item;
+//         while (temp_lhs.move_next()) {
+//             item = temp_lhs.element();
+//             if (!rhs.is_member(item)) {
+//                 equal = false;
+//                 break;
+//             }
+//         }
+//         return equal;
+//     }
+    
+//     template<typename T, typename alloc>
+//     bool operator<(const set_kernel_1<T,alloc>& lhs, const set_kernel_1<T,alloc>& rhs) {
+//         if (lhs.size() >= rhs.size()) return false;
+        
+//         bool is_subset = true;
+//         set_kernel_1<T,alloc> temp_lhs(lhs); // Create copies to avoid modifying originals
+//         T item;
+//         while (temp_lhs.move_next()) {
+//             item = temp_lhs.element();
+//             if (!rhs.is_member(item)) {
+//                 is_subset = false;
+//                 break;
+//             }
+//         }
+//         return is_subset;
+//     }
+// }
 
 #endif /* BNINFENGINE_H_ */

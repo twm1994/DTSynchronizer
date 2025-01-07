@@ -66,6 +66,44 @@ public:
 
     // Print the network structure including nodes and edges
     void printNetwork() const;
+
+    // Wrapper methods for dlib functionality
+    /**
+     * Get the number of parents for a node
+     * @param nodeIdx The index of the node
+     * @return The number of parents
+     */
+    unsigned long number_of_parents(unsigned long nodeIdx) const {
+        return BNet.node(nodeIdx).number_of_parents();
+    }
+
+    /**
+     * Get the parent node at a specific index
+     * @param nodeIdx The index of the node
+     * @param parentIdx The index of the parent
+     * @return The parent node index
+     */
+    unsigned long get_parent(unsigned long nodeIdx, unsigned long parentIdx) const {
+        return BNet.node(nodeIdx).parent(parentIdx).index();
+    }
+
+    /**
+     * Get the total number of nodes in the network
+     * @return The number of nodes
+     */
+    unsigned long number_of_nodes() const {
+        return BNet.number_of_nodes();
+    }
+
+    /**
+     * Get a specific node from the network
+     * @param nodeIdx The index of the node
+     * @return Reference to the node
+     */
+    const typename directed_graph<bayes_node>::kernel_1a_c::node_type& 
+    node(unsigned long nodeIdx) const {
+        return BNet.node(nodeIdx);
+    }
 };
 
 #endif /* OBJECTS_BAYESIANNETWORK_H_ */

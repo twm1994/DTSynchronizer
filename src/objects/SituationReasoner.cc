@@ -610,20 +610,24 @@ SituationInstance::State SituationReasoner::combineStates(std::vector<SituationI
 std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t current) {
     std::set<long> tOperational;
     
+    cout << "show triggered: ";
+    util::printSet(triggered);    
+    
     // Create a working copy of the situation graph
     SituationGraph workingGraph = sg;
 
     std::cout << "\nReasoning Start:\n";
     
     int numOfLayers = workingGraph.modelHeight();
-    // trigger bottom layer situations
+
+    // Step 1: Trigger bottom layer situations
     DirectedGraph g = workingGraph.getLayer(numOfLayers - 1);
     std::vector<long> bottoms = g.topo_sort();
     for (auto bottom : bottoms) {
         SituationInstance &instance = instanceMap[bottom];
         auto it = triggered.find(bottom);
         if (it != triggered.end()) {
-            instance.state = SituationInstance::TRIGGERED;
+            instance.state = SituationInstance::TRIGGERING;
             instance.counter++;
             instance.next_start = current;
             
@@ -634,7 +638,9 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
         }
     }
 
-    // Run belief propagation and retrospection
+    // Step 2: Run belief propagation and retrospection
+    // NOTE: Compare the difference with the over-simplified version from upstream
+    // TODO: Check how to handle TRIGGERING instances 
     beliefPropagation(workingGraph);
     printInstances("Belief Propagation");
     
@@ -644,44 +650,56 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
     downwardRetrospection(workingGraph);
     printInstances("Downward Retrospection");
 
-    // Combine states from buffer for each situation
+    // Step 3: Combine states from buffer for each situation to compute UNDETERMINED state
+    // TODO: Check how to handle TRIGGERING instances
     std::cout << "\nStart State Combination:\n";
+    bool needRefinement = false;
     for (auto& [id, instance] : instanceMap) {
         instance.state = combineStates(instance.stateBuffer);
+        if (instance.state == SituationInstance::UNDETERMINED){
+            needRefinement = true;
+        }
         // Clear buffer after combining
         instance.stateBuffer.clear();
     }
     printInstances("State Combination");    
 
-    // Update refinement with Bayesian Network reasoning
-    std::cout << "\nStart Bayesian Network Reasoning:\n";
-    try {
+    // Step 4: Update refinement with Bayesian Network reasoning
+    if(needRefinement){
+        std::cout << "\nStart Bayesian Network Reasoning:\n";
         BNInferenceEngine engine;
         engine.loadModel(workingGraph, instanceMap);
         engine.reason(workingGraph, instanceMap, current, nullptr);
-    } catch (const std::exception& e) {
-        std::cerr << "Error in Bayesian Network reasoning: " << e.what() << std::endl;
-        throw;
+
     }
 
-    // Get operational situations to return
+    // Step 5: Get operational situations to return
     for (auto bottom : bottoms) {
         SituationInstance &instance = instanceMap[bottom];
-        if (instance.state == SituationInstance::TRIGGERED
+        if (instance.state == SituationInstance::TRIGGERING
                 && instance.next_start == current) {
             tOperational.insert(instance.id);
         }
     }
     
-    // Check and update state, reset transient situations
     checkState(current);
 
+    /*
+     * Reset triggered situation to untriggered state
+     */
+    for(auto& instance : instanceMap){
+        if(instance.second.state == SituationInstance::TRIGGERED){
+            instance.second.state = SituationInstance::UNTRIGGERED;
+        }
+    }
     return tOperational;
 }
 
 void SituationReasoner::checkState(simtime_t current) {
+    // reset transient situations
     for (auto si : instanceMap) {
-        if (si.second.next_start + si.second.duration <= current) {
+        if (si.second.next_start + si.second.duration <= current
+                && si.second.state == SituationInstance::TRIGGERING) {
             si.second.state = SituationInstance::UNTRIGGERED;
             std::cout << "reset node " << si.first << endl;
         }

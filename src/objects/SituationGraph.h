@@ -46,7 +46,10 @@ public:
     std::map<edge_id, SituationRelation> relationMap;
     std::vector<DirectedGraph> layers;
 private:
-    void buildReachabilityMatrix(std::set<long>& vertices, std::set<edge_id>& edges);
+    std::vector<std::vector<bool>> _boolMatrixPower(std::vector<std::vector<bool>> &mat, int n);
+    void _boolMatrixAdd(std::vector<std::vector<bool>> *result,
+            std::vector<std::vector<bool>> &mat1, std::vector<std::vector<bool>> &mat2);
+    void _buildReachabilityMatrix(std::set<long> &vertices, std::set<edge_id> &edges);
 
 public:
     SituationGraph();

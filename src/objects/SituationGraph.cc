@@ -93,15 +93,17 @@ bool SituationGraph::isReachable(long src, long dest){
 /*
  * For square matrix only
  */
-vector<vector<bool>> boolMatrixPower(vector<vector<bool>> &mat, int n) {
+vector<vector<bool>> SituationGraph::_boolMatrixPower(vector<vector<bool>> &mat,
+        int n) {
     vector<vector<bool>> mat_n = mat;
+    int k = mat_n.size();
 
     for (int pow = 0; pow < n - 1; pow++) {
         vector<vector<bool>> temp = mat_n;
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
+        for (int i = 0; i < k; i++) {
+            for (int j = 0; j < k; j++) {
                 bool value = false;
-                for (int m = 0; m < n; m++) {
+                for (int m = 0; m < k; m++) {
                     value = value || (temp[i][m] && mat[m][j]);
                     if (value)
                         // early out
@@ -118,8 +120,8 @@ vector<vector<bool>> boolMatrixPower(vector<vector<bool>> &mat, int n) {
 /*
  * For square matrix only
  */
-void boolMatrixAdd(vector<vector<bool>>* result, vector<vector<bool>> &mat1,
-        vector<vector<bool>> &mat2) {
+void SituationGraph::_boolMatrixAdd(vector<vector<bool>> *result,
+        vector<vector<bool>> &mat1, vector<vector<bool>> &mat2) {
     int n = mat1.size();
 
     for (int i = 0; i < n; i++) {
@@ -129,59 +131,67 @@ void boolMatrixAdd(vector<vector<bool>>* result, vector<vector<bool>> &mat1,
     }
 }
 
-void SituationGraph::buildReachabilityMatrix(set<long>& vertices, set<edge_id>& edges) {
-    int n = vertices.size();
-    delete ri;
-    ri = new vector<vector<bool>>(n, vector<bool>(n, false));
+void SituationGraph::_buildReachabilityMatrix(set<long> &vertices,
+        set<edge_id> &edges) {
+    /*
+     * initialize reachability matrix
+     */
+    int size = vertices.size();
+    ri = new vector<vector<bool>>(size, vector<bool>(size, false));
 
-    // Map node IDs to matrix indices
-    map<long, int> idToIndex;
-    int index = 0;
-    for (long v : vertices) {
-        idToIndex[v] = index++;
-    }
-
-    // Fill in the adjacency matrix
-    for (const edge_id& e : edges) {
-        long src = std::get<0>(e);
-        long dest = std::get<1>(e);
-        (*ri)[idToIndex[src]][idToIndex[dest]] = true;
-    }
-
-    // Calculate transitive closure using Warshall's algorithm
-    for (int k = 0; k < n; k++) {
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                (*ri)[i][j] = (*ri)[i][j]
-                        || ((*ri)[i][k] && (*ri)[k][j]);
+    /*
+     * build adjacency matrix
+     */
+    vector<vector<bool>> adjMatrix(size, vector<bool>(size, false));
+    for (auto src : vertices) {
+        for (auto dest : vertices) {
+            if (src != dest) {
+                edge_id eid;
+                eid.first = src;
+                eid.second = dest;
+                if (edges.count(eid)) {
+                    int i = situationMap[src].index;
+                    int j = situationMap[dest].index;
+                    adjMatrix[i][j] = true;
+                }
             }
         }
     }
+
+    /*
+     * build reachability matrix
+     */
+    for (int i = 1; i <= size; i++) {
+        vector<vector<bool>> adjMatrixPow = _boolMatrixPower(adjMatrix, i);
+        vector<vector<bool>> temp = *ri;
+        _boolMatrixAdd(ri, temp, adjMatrixPow);
+    }
 }
 
-void SituationGraph::loadModel(const std::string &filename, SituationEvolution* se) {
+void SituationGraph::loadModel(const std::string &filename,
+        SituationEvolution *se) {
     std::ifstream f(filename);
     json data = json::parse(f);
 
     int index = 0;
 
     /*
-     * for building reachability index
+     * for constructing reachability index
      */
     set<long> vertices;
     set<edge_id> edges;
 
     /*
-     * Create situation nodes
+     * 1. Create situation graph (SG)
      */
-    for (const auto& layer : data["layers"].items()) {
+    for (const auto &layer : data["layers"].items()) {
 
         std::map<long, SituationNode> layerMap;
 
         /*
          * 1.1 Construct SG nodes and edges
          */
-        for (const auto& node : layer.value().items()) {
+        for (const auto &node : layer.value().items()) {
 
             SituationNode situation;
             long id = node.value()["ID"].get<long>();
@@ -191,20 +201,22 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
             index++;
 
             double duration = node.value()["Duration"].get<double>() / 1000.0;
-            SituationInstance::Type type = (SituationInstance::Type)node.value()["type"].get<short>();
-            if(!node.value()["Cycle"].is_null()){
+            SituationInstance::Type type =
+                    (SituationInstance::Type) node.value()["type"].get<short>();
+            if (!node.value()["Cycle"].is_null()) {
                 // cycle is in millisecond
                 double cycle = node.value()["Cycle"].get<double>() / 1000.0;
                 se->addInstance(id, type, SimTime(duration), SimTime(cycle));
-            }else{
+            } else {
                 se->addInstance(id, type, SimTime(duration));
             }
 
             /*
              * 1.1.1 build cause-consequence relations
              */
-            if (!node.value()["Predecessors"].empty() && !node.value()["Predecessors"].is_null()) {
-                for (const auto& pre : node.value()["Predecessors"].items()) {
+            if (!node.value()["Predecessors"].empty()
+                    && !node.value()["Predecessors"].is_null()) {
+                for (const auto &pre : node.value()["Predecessors"].items()) {
                     SituationRelation relation;
                     long src = pre.value()["ID"].get<long>();
                     relation.src = src;
@@ -230,16 +242,19 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
                     edges.insert(eid);
                 }
             }
+
             /*
              * 1.1.2 build parent-child relations
              */
-            if (!node.value()["Children"].empty()&& !node.value()["Children"].is_null()) {
-                for (const auto& chd : node.value()["Children"].items()) {
+            if (!node.value()["Children"].empty()
+                    && !node.value()["Children"].is_null()) {
+                for (const auto &chd : node.value()["Children"].items()) {
                     SituationRelation relation;
                     long src = chd.value()["ID"].get<long>();
                     relation.src = src;
                     relation.dest = situation.id;
-                    situation.evidences.push_back(chd.value()["ID"].get<long>());
+                    situation.evidences.push_back(
+                            chd.value()["ID"].get<long>());
                     relation.type = SituationRelation::V;
                     short relationValue = chd.value()["Relation"].get<short>();
                     switch (relationValue) {
@@ -274,12 +289,12 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
         DirectedGraph graph;
         for (auto m : layerMap) {
             graph.add_vertex(m.first);
-            SituationNode& node = m.second;
+            SituationNode &node = m.second;
             for (auto p : node.causes) {
                 graph.add_edge(p, node.id);
             }
         }
-        graph.print();
+//        graph.print();
         layers.push_back(graph);
 
         // Create mapping relations
@@ -289,14 +304,14 @@ void SituationGraph::loadModel(const std::string &filename, SituationEvolution* 
     /*
      * 2. Create reachability index
      */
-    buildReachabilityMatrix(vertices, edges);
-    cout << "print reachability matrix" << endl;
-    for(auto row : *ri){
-        for(auto col : row){
-            cout << col << "  ";
-        }
-        cout << endl;
-    }
+    _buildReachabilityMatrix(vertices, edges);
+//    cout << "print reachability matrix" << endl;
+//    for(auto row : *ri){
+//        for(auto col : row){
+//            cout << col << "  ";
+//        }
+//        cout << endl;
+//    }
 }
 
 DirectedGraph SituationGraph::getLayer(int index) const {

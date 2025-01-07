@@ -69,17 +69,32 @@ void EventSource::handleMessage(cMessage *msg) {
         int situationCount = 0;
         for(auto operation : operations){
             IoTEvent* event = new IoTEvent(msg::IOT_EVENT);
-
-            event->setEventID(operation.id);
+            long opID = operation.id;
+            event->setEventID(opID);
             event->setToTrigger(operation.toTrigger);
             event->setTimestamp(operation.timestamp);
             event->setType(operation.type);
             event->setCounter(operation.counter);
-            // TODO: a cause can be an implicit cause, i.e., implied from higher-layer situation relation; Also, OR relation needs to be considered
-            vector<long> causes = sa.getModel().getNode(operation.id).causes;
+
+            /*
+             * Check the explicit cause only
+             */
+//            vector<long> causes = sa.getModel().getNode(operation.id).causes;
+//            map<long, int> causeCounts;
+//            for(auto cause : causes){
+//                causeCounts[cause] = sa.getInstance(cause).counter;
+//            }
+            /*
+             * Check both explicit cause and implicit cause
+             */
+            vector<long> operations =
+                    sa.getModel().getAllOperationalSitutions();
             map<long, int> causeCounts;
-            for(auto cause : causes){
-                causeCounts[cause] = sa.getInstance(cause).counter;
+            for (auto op2 : operations) {
+                if (op2 != opID && sa.getModel().isReachable(op2, opID)
+                        && !sa.getModel().isReachable(opID, op2)) {
+                    causeCounts[op2] = sa.getInstance(op2).counter;
+                }
             }
             json j_causeCounts(causeCounts);
             event->setCauseCounts(j_causeCounts.dump().c_str());

@@ -83,8 +83,9 @@ void Synchronizer::finish() {
         cout << "actual situation " << op << " count = " << ao_count << endl;
         cout << "simulated situation " << op << " count = " << so_count << endl;
     }
-    double fidelity_occ = sqrt(sum_sqr_diff / (double)operations.size());
+    double fidelity_occ = 1 - sqrt(sum_sqr_diff / (double)operations.size());
     recordScalar("Situation Occurrence Fidelity", fidelity_occ);
+
     /*
      * Calculate situation alignment fidelity
      */
@@ -236,7 +237,7 @@ void Synchronizer::handleMessage(cMessage *msg) {
 
         scheduleAt(simTime() + slice_cycle, SETimeout);
     } else if (msg->isName(msg::SC_TIMEOUT)) {
-        sr.checkState(SimTime());
+        sr.checkState(simTime());
         scheduleAt(simTime() + check_cycle, SCTimeout);
     }
 }

@@ -204,67 +204,50 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
 }
 
 void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstance> &instanceMap, simtime_t current, std::shared_ptr<ReasonerLogger> logger) {
-    _sg = sg;  // Update stored graph
-    _logger = logger;
-    
-    std::cout << "\nInitializing Bayesian Network..." << std::endl;
-    
-    // Load the model with the current graph and instances
-    loadModel(sg, instanceMap);
-    
-    if (_logger) {
-        _logger->logStep("BN Structure Created", 
-                       current, 
-                       -1, 
-                       0.0, 
-                       {}, 
-                       {}, 
-                       SituationInstance::UNDETERMINED);
-    }
+    /*
+     * Build a Bayesian network solution
+     */
+    std::map<long, long> evidences;
+    for (auto instance : instanceMap) {
+        long sid = instance.first;
+        SituationInstance si = instance.second;
+        if (si.state == SituationInstance::TRIGGERING || si.state == SituationInstance::TRIGGERED) {
+            // TODO here, instance alignment is included, correct and fully implemented?
+            evidences[sid] = 1;
 
-    // Build join tree and create solution
-    try {
-        std::cout << "Building join tree..." << std::endl;
-        buildJoinTree();
-        std::cout << "Join tree built successfully" << std::endl;
-        
-        if (_logger) {
-            _logger->logStep("BN Join Tree Created", 
-                           current, 
-                           -1, 
-                           0.0, 
-                           {}, 
-                           {}, 
-                           SituationInstance::UNDETERMINED);
+            cout << "set evidence of node " << sid << ": " << 1 << endl;
+        }else if(si.state == SituationInstance::UNTRIGGERED){
+            evidences[sid] = 0;
+            cout << "set evidence of node " << sid << ": " << 0 << endl;
         }
-        
-        // Calculate beliefs
-        std::cout << "Calculating beliefs..." << std::endl;
-        calculateBeliefs(instanceMap, current);
-        std::cout << "Beliefs calculated successfully" << std::endl;
-        
-        if (_logger) {
-            _logger->logStep("BN Beliefs Calculated", 
-                           current, 
-                           -1, 
-                           0.0, 
-                           {}, 
-                           {}, 
-                           SituationInstance::UNDETERMINED);
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "Error during inference: " << e.what() << std::endl;
-        if (_logger) {
-            _logger->logStep("BN Inference Error", 
-                           current, 
-                           -1, 
-                           0.0, 
-                           {}, 
-                           {}, 
-                           SituationInstance::UNDETERMINED);
-        }
-        throw;
     }
+    _BNet->buildSolution(evidences);
+
+    /*
+     * Bayesian network-based state inference
+     */
+    for (auto& instance : instanceMap) {
+        long sid = instance.first;
+        SituationInstance &si = instance.second;
+        // probability of triggering
+        double p_tr = _BNet->getProbability(sid, 1);
+        if(si.state == SituationInstance::UNDETERMINED){
+            if (p_tr >= sg.situationMap[sid].threshold) {
+                si.state = SituationInstance::TRIGGERING;
+                si.counter++;
+                si.next_start = current;
+            } else {
+                si.state = SituationInstance::UNTRIGGERED;
+            }
+                cout << "probability of triggering node " << sid << ": " << p_tr << endl;
+                cout << "state of undetermined node " << sid << ": " << si.state << endl;
+                cout << "counter of node " << sid << ": " << si.counter << endl;
+        }
+    }
+    /*
+     * Clear the solution
+     */
+    _BNet->clearSolution();
 }
 
 void BNInferenceEngine::addNode(const std::string& nodeName, const SituationNode& node) {

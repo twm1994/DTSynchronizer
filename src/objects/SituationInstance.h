@@ -98,10 +98,10 @@ public:
      * @param duration Duration of the situation
      * @param cycle Cycle time of the situation
      */
-    SituationInstance(long id, Type type, simtime_t duration, simtime_t cycle) :
+    SituationInstance(long id, Type type, simtime_t duration, simtime_t cycle, double baseBelief):
         id(id), counter(0), state(UNTRIGGERED), type(NORMAL),
         duration(duration), cycle(cycle), next_start(0),
-        beliefValue(0.0), beliefUpdated(false) {
+        beliefValue(baseBelief), beliefUpdated(false) {
         stateBuffer.clear();
     }
     // SituationInstance();

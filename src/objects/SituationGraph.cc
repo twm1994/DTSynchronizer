@@ -196,6 +196,8 @@ void SituationGraph::loadModel(const std::string &filename,
             SituationNode situation;
             long id = node.value()["ID"].get<long>();
             situation.id = id;
+            double threshold = node.value()["Threshold"].get<double>();
+            situation.threshold = threshold;
             vertices.insert(id);
             situation.index = index;
             index++;
@@ -206,7 +208,14 @@ void SituationGraph::loadModel(const std::string &filename,
             if (!node.value()["Cycle"].is_null()) {
                 // cycle is in millisecond
                 double cycle = node.value()["Cycle"].get<double>() / 1000.0;
-                se->addInstance(id, type, SimTime(duration), SimTime(cycle));
+
+                // Add base belief for nodes without evidence
+                if (!node.value()["BaseBelief"].is_null()) {
+                    double baseBelief = node.value()["BaseBelief"].get<double>();
+                    se->addInstance(id, type, SimTime(duration), SimTime(cycle), baseBelief);
+                } else {
+                    se->addInstance(id, type, SimTime(duration), SimTime(cycle));
+                }
             } else {
                 se->addInstance(id, type, SimTime(duration));
             }

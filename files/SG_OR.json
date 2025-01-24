@@ -23,6 +23,7 @@
           ],
           "Duration": 3000,
           "Cycle": 1500,
+          "Threshold": 0.82,
           "type": 0
         },
         {
@@ -37,6 +38,7 @@
           ],
           "Duration": 1500,
           "Cycle": 2000,
+          "Threshold": 0.77,
           "type": 0
           }        
       ],
@@ -58,6 +60,7 @@
           ],
           "Duration": 2000,
           "Cycle": 2000,
+          "Threshold": 0.95,
           "type": 0
         },
         {
@@ -78,6 +81,7 @@
           ],
           "Duration": 2000,
           "Cycle": 500,
+          "Threshold": 0.95,
           "type": 0
         },
         {
@@ -92,6 +96,7 @@
           "Children": null,
           "Duration": 2000,
           "Cycle": 2000,
+          "Threshold": 0.92,
           "type": 0
         },
         {
@@ -117,6 +122,7 @@
           ],
           "Duration": 1500,
           "Cycle": 2000,
+          "Threshold": 0.77,
           "type": 0
         }        
       ],
@@ -127,6 +133,8 @@
           "Children": null,
           "Duration": 1000,
           "Cycle": 1000,
+          "Threshold": 0.92,
+          "BaseBelief": 0.84, 
           "type": 0
         },        
         {
@@ -141,6 +149,8 @@
           "Children": null,
           "Duration": 1000,
           "Cycle": 1000,
+          "Threshold": 0.88,
+          "BaseBelief": 0.86,
           "type": 0
         },
         {
@@ -149,6 +159,8 @@
           "Children": null,
           "Duration": 1000,
           "Cycle": 2000,
+          "Threshold": 0.85,
+          "BaseBelief": 0.99,
           "type": 0
         },
         {
@@ -157,6 +169,8 @@
           "Children": null,
           "Duration": 1000,
           "Cycle": 2000,
+          "Threshold": 0.83,
+          "BaseBelief": 0.95,
           "type": 0
         },
         {
@@ -171,6 +185,8 @@
           "Children": null,
           "Duration": 3000,
           "Cycle": 3000,
+          "Threshold": 0.81,
+          "BaseBelief": 0.93,
           "type": 0
         },
         {
@@ -185,6 +201,8 @@
           "Children": null,
           "Duration": 1000,
           "Cycle": 2000,
+          "Threshold": 0.89,
+          "BaseBelief": 0.92,
           "type": 0
         },
         {
@@ -199,6 +217,8 @@
           "Children": null,
           "Duration": 1000,
           "Cycle": 2000,
+          "Threshold": 0.85,
+          "BaseBelief": 0.9,
           "type": 0
         }
       ]

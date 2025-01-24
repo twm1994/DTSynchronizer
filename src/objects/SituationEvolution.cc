@@ -26,8 +26,8 @@ void SituationEvolution::initModel(const char *model_path) {
 }
 
 void SituationEvolution::addInstance(long id, SituationInstance::Type type,
-        simtime_t duration, simtime_t cycle) {
-    SituationInstance si(id, type, duration, cycle);
+        simtime_t duration, simtime_t cycle, double baseBelief) {
+    SituationInstance si(id, type, duration, cycle, baseBelief);
     instanceMap[si.id] = si;
 }
 

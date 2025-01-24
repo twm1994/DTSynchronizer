@@ -59,10 +59,12 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
             
             // Case 1: Base hypothesis (no evidence nodes)
             // Set belief to expert-defined measure
+            // NOTE: are there any problem if base belief is fixed?
             if (evidenceNodes.empty()) {
                 hypothesisInstance.updateBelief(0.8);  // Expert-defined measure = 0.8;
                 std::cout << "  Base Hypothesis " << nodeId << ": " << hypothesisInstance.beliefValue << "\n";
             }
+
             // Case 2: Single evidence with SOLE relation
             // Belief = evidence_belief * relation_weight
             else if (evidenceNodes.size() == 1) {
@@ -83,6 +85,7 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
                     std::cout << "  Skipped: Relation is not SOLE\n";
                 }
             }
+
             // Cases 3 & 4: Multiple evidence nodes with OR or AND relations
             else {
                 bool allOr = true;
@@ -203,18 +206,18 @@ void SituationReasoner::backwardRetrospection(SituationGraph& graph) {
         std::deque<long> triggeredSituations;
         
         // Traverse nodes in reverse order since topo_sort puts causes before effects
+        // NOTE:both TRIGGERED and TRIGGERING instances are considered for instance alignment
         for (auto it = nodes.rbegin(); it != nodes.rend(); ++it) {
             long nodeId = *it;
             SituationInstance& instance = instanceMap[nodeId];
             std::cout << "  Checking node " << nodeId << ": state=" << instance.state;
-            if (instance.state == SituationInstance::TRIGGERED) {
-                std::cout << " (triggered)\n";
+            if (instance.state == SituationInstance::TRIGGERED || instance.state == SituationInstance::TRIGGERING) {
+                std::cout << " (triggered)/(triggering)\n";
                 triggeredSituations.push_back(nodeId);
-                // Update state buffer with current state
-                instance.addStateToBuffer(instance.state);
-            } else {
-                instance.addStateToBuffer(SituationInstance::UNTRIGGERED);
+
             }
+            // Update state buffer with current state
+            instance.addStateToBuffer(instance.state);
             std::cout << "\n";
         }
         
@@ -267,7 +270,8 @@ void SituationReasoner::backwardRetrospection(SituationGraph& graph) {
                         }
                         
                         std::cout << "  Cause situation " << causeId << " updated to " << newState << "\n";
-                    } else if (causeInstance.state == SituationInstance::TRIGGERED) {
+                    } else if (causeInstance.state == SituationInstance::TRIGGERED || causeInstance.state == SituationInstance::TRIGGERING) {
+                        // Determine state based on effect node
                         // Check if causeId is already in triggeredSituations
                         if (std::find(triggeredSituations.begin(), triggeredSituations.end(), causeId) == triggeredSituations.end()) {
                             triggeredSituations.push_back(causeId);
@@ -323,14 +327,10 @@ void SituationReasoner::downwardRetrospection(SituationGraph& graph) {
             std::cout << "    Belief value: " << instance.beliefValue << std::endl;
             std::cout << "    Belief updated: " << (instance.beliefUpdated ? "true" : "false") << std::endl;
             
-            if (instance.state == SituationInstance::TRIGGERED) {
-                triggeredSituations.push_back(nodeId);
-                instance.addStateToBuffer(instance.state);
-                std::cout << "    -> Added to triggered situations queue" << std::endl;
-            } else {
-                instance.addStateToBuffer(SituationInstance::UNTRIGGERED);
-                std::cout << "    -> Added UNTRIGGERED to state buffer" << std::endl;
+            if (instance.state == SituationInstance::TRIGGERED || instance.state == SituationInstance::TRIGGERING) {
+                triggeredSituations.push_back(nodeId);             
             }
+            instance.addStateToBuffer(instance.state);
         }
         
         std::cout << "\n2. Processing triggered situations:" << std::endl;
@@ -404,12 +404,13 @@ void SituationReasoner::downwardRetrospection(SituationGraph& graph) {
     std::cout << "=============================" << std::endl;
 }
 
+// Helper function for backward retrospection
 SituationInstance::State SituationReasoner::determineCauseState(long causeId, long effectId, SituationGraph& graph) {
     // const SituationNode& causeNode = graph.getNode(causeId);
     SituationInstance& effectInstance = instanceMap[effectId];
     
-    // Condition 1: Effect node must be TRIGGERED
-    if (effectInstance.state != SituationInstance::TRIGGERED) {
+    // Condition 1: Effect node must be TRIGGERED or TRIGGERING
+    if (effectInstance.state == SituationInstance::UNTRIGGERED) {
         return SituationInstance::UNDETERMINED;
     }
     
@@ -453,13 +454,13 @@ SituationInstance::State SituationReasoner::determineCauseState(long causeId, lo
     // Condition 2.2: All effects of this cause have OR relations
     condition2_2 = allOr;
     
-    // Condition 2.3: All effects have AND relations and non-input effects are UNTRIGGERED
+    // Condition 2.3: All effects have AND relations and all effects except the input are UNTRIGGERED
     if (allAnd) {
         bool allOtherEffectsUntriggered = true;
         for (long otherEffectId : effects) {
             if (otherEffectId != effectId) {
                 SituationInstance& otherEffectInstance = instanceMap[otherEffectId];
-                if (otherEffectInstance.state != SituationInstance::UNTRIGGERED) {
+                if (otherEffectInstance.state == SituationInstance::TRIGGERED || otherEffectInstance.state == SituationInstance::TRIGGERING) {
                     allOtherEffectsUntriggered = false;
                     break;
                 }
@@ -477,12 +478,13 @@ SituationInstance::State SituationReasoner::determineCauseState(long causeId, lo
     return SituationInstance::UNDETERMINED;
 }
 
+// Helper function for downward retrospection
 SituationInstance::State SituationReasoner::determineChildState(long parentId, long childId, SituationGraph& graph) {
     const SituationNode& parentNode = graph.getNode(parentId);
     SituationInstance& parentInstance = instanceMap[parentId];
     
     // Condition 1: Parent node must be TRIGGERED
-    if (parentInstance.state != SituationInstance::TRIGGERED) {
+    if (parentInstance.state != SituationInstance::TRIGGERED || parentInstance.state != SituationInstance::TRIGGERING) {
         return SituationInstance::UNDETERMINED;
     }
     
@@ -581,9 +583,10 @@ SituationInstance::State SituationReasoner::combineStates(std::vector<SituationI
         std::cout << "  Processing state[" << i << "]: " << currentState << "\n";
 
         // Rule 1: If one is TRIGGERED, result is TRIGGERED
-        if (tr == SituationInstance::TRIGGERED || currentState == SituationInstance::TRIGGERED) {
+        if (tr == SituationInstance::TRIGGERED || tr == SituationInstance::TRIGGERING ||
+            currentState == SituationInstance::TRIGGERED || currentState == SituationInstance::TRIGGERING) {
             tr = SituationInstance::TRIGGERED;
-            std::cout << "    Rule 1: One state is TRIGGERED -> Result = TRIGGERED\n";
+            std::cout << "    Rule 1: One state is TRIGGERED/TRIGGERING -> Result = TRIGGERED\n";
         }
         // Rule 2: If both are UNDETERMINED, result is UNDETERMINED
         else if (tr == SituationInstance::UNDETERMINED && currentState == SituationInstance::UNDETERMINED) {
@@ -665,13 +668,18 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
     printInstances("State Combination");    
 
     // Step 4: Update refinement with Bayesian Network reasoning
-    if(needRefinement){
-        std::cout << "\nStart Bayesian Network Reasoning:\n";
-        BNInferenceEngine engine;
-        engine.loadModel(workingGraph, instanceMap);
-        engine.reason(workingGraph, instanceMap, current, nullptr);
+    // if(needRefinement){
+    //     std::cout << "\nStart Bayesian Network Reasoning:\n";
+    //     BNInferenceEngine engine;
+    //     engine.loadModel(workingGraph, instanceMap);
+    //     engine.reason(workingGraph, instanceMap, current, nullptr);
 
-    }
+    // }
+
+    std::cout << "\nStart Bayesian Network Reasoning:\n";
+    BNInferenceEngine engine;
+    engine.loadModel(workingGraph, instanceMap);
+    engine.reason(workingGraph, instanceMap, current, nullptr);
 
     // Step 5: Get operational situations to return
     for (auto bottom : bottoms) {

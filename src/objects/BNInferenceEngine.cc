@@ -129,25 +129,37 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
         }
     }
     
+    // Print the causal subgraph
+    std::cout << "Causal subgraph:" << std::endl;
+    causalDGraph.print();
+
     // Step 5: Create Bayesian network for the subgraph
     std::cout << "Creating Bayesian Network structure..." << std::endl;
+
+    // Clear existing mappings
+    nodeToIndex.clear();
+    indexToNode.clear();
 
     // Build the Bayesian network
     const auto& vertices = causalDGraph.getVertices();
     std::set<long> nodes;
     std::set<std::pair<long, long>> edges;
     
-    // Add all vertices
+    // Create sequential index mapping for nodes
+    unsigned long nextIndex = 0;
     for (const auto& vertex : vertices) {
-        nodes.insert(vertex);
+        nodeToIndex[vertex] = nextIndex;
+        indexToNode[nextIndex] = vertex;
+        nodes.insert(nextIndex);
+        nextIndex++;
     }
     
-    // Add all edges
+    // Add all edges using the mapped indices
     for (const auto& vertex : vertices) {
         try {
             const auto& adjList = causalDGraph.getAdjacencyList(vertex);
             for (const auto& dest : adjList) {
-                edges.insert(std::make_pair(vertex, dest));
+                edges.insert(std::make_pair(nodeToIndex[vertex], nodeToIndex[dest]));
             }
         } catch (const std::out_of_range&) {
             continue;
@@ -155,6 +167,8 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
     }
     
     _BNet->buildBNGraph(nodes, edges);
+
+    _BNet->printNetwork();
 
     // Step 6: Construct CPTs for the Bayesian Network
     std::cout << "Constructing Conditional Probability Tables..." << std::endl;
@@ -184,14 +198,19 @@ void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstan
     for (auto instance : instanceMap) {
         long sid = instance.first;
         SituationInstance si = instance.second;
+        
+        // Skip if we don't have a mapping for this node
+        if (nodeToIndex.find(sid) == nodeToIndex.end()) {
+            continue;
+        }
+        
         if (si.state == SituationInstance::TRIGGERING || si.state == SituationInstance::TRIGGERED) {
-            // TODO here, instance alignment is included, correct and fully implemented?
-            evidences[sid] = 1;
-
-            cout << "set evidence of node " << sid << ": " << 1 << endl;
-        }else if(si.state == SituationInstance::UNTRIGGERED){
-            evidences[sid] = 0;
-            cout << "set evidence of node " << sid << ": " << 0 << endl;
+            // Use the mapped index instead of the original node ID
+            evidences[nodeToIndex[sid]] = 1;
+            cout << "set evidence of node " << sid << " (index " << nodeToIndex[sid] << "): 1" << endl;
+        } else if(si.state == SituationInstance::UNTRIGGERED) {
+            evidences[nodeToIndex[sid]] = 0;
+            cout << "set evidence of node " << sid << " (index " << nodeToIndex[sid] << "): 0" << endl;
         }
     }
     _BNet->buildSolution(evidences);
@@ -288,6 +307,12 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
         case RelationType::NONE: {
             // Add to cptCache with empty set
             std::set<std::pair<long, long>> empty_set;
+            /*
+            * NOTE: in the paper this case is determined by either IoT data (node is observable) or expert (node is not observable)
+            * For the first case, p is either 1 or 0
+            * For the second case, p is determined by the expert
+            * Here, we assume the first case and set node is untriggered by default    
+            */ 
             std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, empty_set);
             cptCache[setting_0] = 1.0;
             std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, empty_set);
@@ -345,7 +370,14 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
             std::vector<long> andNodes(relations.andNodes.begin(), relations.andNodes.end());
             std::vector<long> andAssignment(andNodes.size(), 0);
             
+            size_t combinationCount = 0;
             do {
+                if (combinationCount >= 32) {
+                    EV_WARN << "Number of AND combinations exceeded 32 for node " << node.id << ". Stopping early." << endl;
+                    break;
+                }
+                combinationCount++;
+                
                 std::set<std::pair<long, long>> parent_states;
                 std::vector<double> weights;
                 bool hasTriggeredParent = false;
@@ -433,7 +465,14 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
             std::vector<long> orNodes(relations.orNodes.begin(), relations.orNodes.end());
             std::vector<long> orAssignment(orNodes.size(), 0);
             
+            size_t combinationCount = 0;
             do {
+                if (combinationCount >= 32) {
+                    EV_WARN << "Number of OR combinations exceeded 32 for node " << node.id << ". Stopping early." << endl;
+                    break;
+                }
+                combinationCount++;
+                
                 std::set<std::pair<long, long>> parent_states;
                 std::vector<double> weights;
                 bool hasTriggeredParent = false;

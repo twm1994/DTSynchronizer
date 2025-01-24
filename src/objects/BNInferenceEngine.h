@@ -79,6 +79,10 @@ private:
     };
     std::unordered_map<EdgeKey, double, EdgeKeyHash> _weightCache;  // (srcID, destID) -> weight
 
+    // Node ID mapping
+    std::map<long, unsigned long> nodeToIndex;  // Maps node IDs to sequential indices
+    std::map<unsigned long, long> indexToNode;  // Maps sequential indices back to node IDs
+
     // Helper functions for d-separation
     bool isCollider(unsigned long node, const std::vector<unsigned long>& path) const;
     bool isActive(unsigned long node, const std::set<unsigned long>& conditioningSet, 

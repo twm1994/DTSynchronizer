@@ -360,6 +360,17 @@ const std::map<long, SituationRelation>& SituationGraph::getOutgoingRelations(lo
     return outgoing;
 }
 
+const std::map<long, SituationRelation> SituationGraph::getIncomingRelations(long nodeId) const {
+    std::map<long, SituationRelation> incoming;
+    
+    for (const auto& rel : relationMap) {
+        if (std::get<1>(rel.first) == nodeId) {  // If this relation ends at nodeId
+            incoming[std::get<0>(rel.first)] = rel.second;  // Map source node to relation
+        }
+    }
+    return incoming;
+}
+
 int SituationGraph::numOfNodes() const {
     return situationMap.size();
 }

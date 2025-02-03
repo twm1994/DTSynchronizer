@@ -376,16 +376,22 @@ void SituationReasoner::downwardRetrospection(SituationGraph& graph) {
                     std::cout << "        State buffer size: " << childInstance.stateBuffer.size() << std::endl;
                     
                     if (newState == SituationInstance::TRIGGERED) {
-                        // Check if childId is already in triggeredSituations
-                        bool alreadyInQueue = std::find(triggeredSituations.begin(), 
-                                                      triggeredSituations.end(), 
-                                                      childId) != triggeredSituations.end();
-                        
-                        if (!alreadyInQueue) {
-                            triggeredSituations.push_back(childId);
-                            std::cout << "        -> Added to triggered situations queue" << std::endl;
+                        // Only add to queue if the child is in the current layer
+                        bool isInCurrentLayer = std::find(nodes.begin(), nodes.end(), childId) != nodes.end();
+                        if (isInCurrentLayer) {
+                            // Check if childId is already in triggeredSituations
+                            bool alreadyInQueue = std::find(triggeredSituations.begin(), 
+                                                          triggeredSituations.end(), 
+                                                          childId) != triggeredSituations.end();
+                            
+                            if (!alreadyInQueue) {
+                                triggeredSituations.push_back(childId);
+                                std::cout << "        -> Added to triggered situations queue (same layer)" << std::endl;
+                            } else {
+                                std::cout << "        -> Already in triggered situations queue" << std::endl;
+                            }
                         } else {
-                            std::cout << "        -> Already in triggered situations queue" << std::endl;
+                            std::cout << "        -> Not added to queue (different layer)" << std::endl;
                         }
                     }
                 }
@@ -532,12 +538,13 @@ SituationInstance::State SituationReasoner::determineChildState(long parentId, l
     }
     std::cout << "  Condition 1 passed: Parent is TRIGGERED or TRIGGERING" << std::endl;
     
-    // Get all V-type child relations
+    // Get all V-type child relations (looking from child to parent)
     std::vector<long> vChildren;
     std::vector<SituationRelation::Relation> vRelations;
-    std::cout << "\n  Getting all vertical relations from parent " << parentId << ":" << std::endl;
-    for (const auto& [nodeId, relation] : graph.getOutgoingRelations(parentId)) {
-        std::cout << "    Checking relation to " << nodeId << ": type=" << relation.type;
+    std::cout << "\n  Getting all vertical relations to parent " << parentId << ":" << std::endl;
+    const auto& incomingRels = graph.getIncomingRelations(parentId);
+    for (const auto& [nodeId, relation] : incomingRels) {
+        std::cout << "    Checking relation from " << nodeId << ": type=" << relation.type;
         if (relation.type == SituationRelation::V) {
             vChildren.push_back(nodeId);
             vRelations.push_back(relation.relation);

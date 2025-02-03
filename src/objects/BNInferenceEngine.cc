@@ -43,9 +43,7 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
     if (result.nodes.empty()) {
         std::cout << "No causally connected nodes found, using full graph..." << std::endl;
         // Use cached nodes directly
-        for (const auto& pair : _nodeCache) {
-            const long& nodeId = pair.first;
-            const SituationNode& node = pair.second;
+        for (const auto& [nodeId, node] : _nodeCache) {
             causalGraph.situationMap[nodeId] = node;
             if (instanceMap.find(nodeId) != instanceMap.end()) {
                 causalInstanceMap[nodeId] = instanceMap[nodeId];
@@ -73,9 +71,7 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
     std::vector<long> mixedRelationNodes;
     
     // Use cached relations
-    for (const auto& pair : causalGraph.situationMap) {
-        const long& nodeId = pair.first;
-        const SituationNode& node = pair.second;
+    for (const auto& [nodeId, node] : causalGraph.situationMap) {
         auto relIt = _relationCache.find(nodeId);
         if (relIt != _relationCache.end()) {
             const auto& relInfo = relIt->second;
@@ -104,10 +100,10 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
         const auto& relInfo = relIt->second;
         
         // Add edges from all relation types
-        auto addEdgesFromSet = [&](const std::set<long>& nodes) {
+        auto addEdgesFromSet = [targetId=nodeId, &causalGraph, &causalDGraph](const std::set<long>& nodes) {
             for (long parentId : nodes) {
                 if (causalGraph.situationMap.find(parentId) != causalGraph.situationMap.end()) {
-                    causalDGraph.add_edge(parentId, nodeId);
+                    causalDGraph.add_edge(parentId, targetId);
                 }
             }
         };

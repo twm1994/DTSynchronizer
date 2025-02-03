@@ -30,7 +30,7 @@ using namespace bayes_node_utils;
 
 class BayesianNetwork {
 private:
-    bayesian_network_join_tree* solution_with_evidence;
+    std::unique_ptr<bayesian_network_join_tree> solution_with_evidence;
     directed_graph<bayes_node>::kernel_1a_c BNet;
 public:
     /*

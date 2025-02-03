@@ -328,7 +328,11 @@ DirectedGraph SituationGraph::getLayer(int index) const {
 }
 
 SituationNode SituationGraph::getNode(long id) const {
-    return situationMap.at(id);
+    auto it = situationMap.find(id);
+    if (it == situationMap.end()) {
+        throw std::runtime_error("Node " + std::to_string(id) + " not found in graph");
+    }
+    return it->second;
 }
 
 int SituationGraph::modelHeight() const {

@@ -17,8 +17,8 @@
 #include "../utils/ReasonerLogger.h"
 
 struct CausalConnection {
-    std::set<const SituationNode*> nodes;
-    std::set<std::pair<const SituationNode*, const SituationNode*>> edges;
+    std::set<long> nodes;  // Store node IDs instead of pointers
+    std::set<std::pair<long, long>> edges;  // Store node ID pairs instead of pointer pairs
 };
 
 struct RelationType {
@@ -99,7 +99,7 @@ protected:
     std::vector<unsigned long> getParents(unsigned long nodeIdx) const;
     std::vector<unsigned long> getChildren(unsigned long nodeIdx) const;
 
-    std::set<const SituationNode*> findConnectedNodes(const SituationNode& node);
+    std::set<long> findConnectedNodes(const SituationNode& node);
     CausalConnection findCausallyConnectedNodes(const std::map<long, SituationInstance>& instanceMap);
     
     /**

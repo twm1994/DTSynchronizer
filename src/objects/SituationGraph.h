@@ -45,6 +45,12 @@ public:
     typedef pair<long, long> edge_id;
     std::map<edge_id, SituationRelation> relationMap;
     std::vector<DirectedGraph> layers;
+
+    // Add hasNode method
+    bool hasNode(long id) const {
+        return situationMap.find(id) != situationMap.end();
+    }
+
 private:
     std::vector<std::vector<bool>> _boolMatrixPower(std::vector<std::vector<bool>> &mat, int n);
     void _boolMatrixAdd(std::vector<std::vector<bool>> *result,

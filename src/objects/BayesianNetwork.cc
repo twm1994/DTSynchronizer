@@ -16,13 +16,13 @@
 #include "BayesianNetwork.h"
 
 BayesianNetwork::BayesianNetwork() {
-    solution_with_evidence = NULL;
+    // No need to initialize unique_ptr, it's automatically nullptr
 }
 
 BayesianNetwork::~BayesianNetwork() {
-    if (solution_with_evidence) {
-        delete solution_with_evidence;
-    }
+//    if (solution_with_evidence) {
+//        delete solution_with_evidence;
+//    }
 }
 
 void BayesianNetwork::BuildNetwork(long node_count,
@@ -87,7 +87,7 @@ void BayesianNetwork::buildSolution(std::map<long, long> evidences) {
         set_node_as_evidence(BNet, id);
     }
 
-    solution_with_evidence = new bayesian_network_join_tree(BNet, join_tree);
+    solution_with_evidence = std::make_unique<bayesian_network_join_tree>(BNet, join_tree);
 }
 
 void BayesianNetwork::buildBNGraph(std::set<long> nodes, std::set<std::pair<long, long>> edges) {
@@ -129,10 +129,10 @@ double BayesianNetwork::getProbability(long node, long state) {
 }
 
 void BayesianNetwork::clearSolution() {
-    if (solution_with_evidence) {
-        delete solution_with_evidence;
-        solution_with_evidence = NULL;
-    }
+//    if (solution_with_evidence) {
+//        delete solution_with_evidence;
+//        solution_with_evidence = NULL;
+//    }
     BNet.clear();
 }
 

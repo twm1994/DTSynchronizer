@@ -58,13 +58,12 @@ void SituationReasoner::beliefPropagation(SituationGraph& graph) {
             }
             
             // Case 1: Base hypothesis (no evidence nodes)
-            // Set belief to expert-defined measure
-            // NOTE: are there any problem if base belief is fixed?
+            // Use the instance's existing belief value which was set during initialization
             if (evidenceNodes.empty()) {
-                hypothesisInstance.updateBelief(0.8);  // Expert-defined measure = 0.8;
+                // No need to update belief as it was already set during instance creation
                 std::cout << "  Base Hypothesis " << nodeId << ": " << hypothesisInstance.beliefValue << "\n";
             }
-
+            
             // Case 2: Single evidence with SOLE relation
             // Belief = evidence_belief * relation_weight
             else if (evidenceNodes.size() == 1) {
@@ -306,8 +305,8 @@ void SituationReasoner::downwardRetrospection(SituationGraph& graph) {
     std::cout << "\nStarting Downward Retrospection" << std::endl;
     std::cout << "=============================" << std::endl;
     
-    // Process each layer from top to bottom
-    for (int layer = 0; layer < numLayers; layer++) {
+    // Process each layer from top to bottom, skipping the bottom layer
+    for (int layer = 0; layer < numLayers - 1; layer++) {
         DirectedGraph currentLayer = graph.getLayer(layer);
         std::vector<long> nodes = currentLayer.topo_sort();
         
@@ -347,7 +346,7 @@ void SituationReasoner::downwardRetrospection(SituationGraph& graph) {
             std::cout << "    2.1 Collecting child situations with vertical relations:" << std::endl;
             std::vector<long> childSituations;
             for (long childId : parentNode.evidences) {
-                const SituationRelation* relation = graph.getRelation(parentId, childId);
+                const SituationRelation* relation = graph.getRelation(childId, parentId);  // Look for child->parent relation
                 std::cout << "      Checking child " << childId << ": ";
                 if (relation && relation->type == SituationRelation::V) {
                     childSituations.push_back(childId);
@@ -406,23 +405,35 @@ void SituationReasoner::downwardRetrospection(SituationGraph& graph) {
 
 // Helper function for backward retrospection
 SituationInstance::State SituationReasoner::determineCauseState(long causeId, long effectId, SituationGraph& graph) {
+    std::cout << "\nDetermining cause state for cause=" << causeId << ", effect=" << effectId << std::endl;
+    
     // const SituationNode& causeNode = graph.getNode(causeId);
     SituationInstance& effectInstance = instanceMap[effectId];
+    std::cout << "  Effect instance state: " << effectInstance.state 
+              << " (0=UNTRIGGERED, 1=TRIGGERING, 2=TRIGGERED, 3=UNDETERMINED)" << std::endl;
     
     // Condition 1: Effect node must be TRIGGERED or TRIGGERING
-    if (effectInstance.state == SituationInstance::UNTRIGGERED) {
+    if (effectInstance.state == SituationInstance::UNTRIGGERED || effectInstance.state == SituationInstance::UNDETERMINED) {
+        std::cout << "  Condition 1 failed: Effect is neither TRIGGERED nor TRIGGERING" << std::endl;
         return SituationInstance::UNDETERMINED;
     }
+    std::cout << "  Condition 1 passed: Effect is TRIGGERED or TRIGGERING" << std::endl;
     
     // Get all effects with type-H relations from this cause
     std::vector<long> effects;
     std::vector<SituationRelation::Relation> effectRelations;
+    std::cout << "\n  Getting all horizontal relations from cause " << causeId << ":" << std::endl;
     for (const auto& [nodeId, relation] : graph.getOutgoingRelations(causeId)) {
+        std::cout << "    Checking relation to " << nodeId << ": type=" << relation.type;
         if (relation.type == SituationRelation::H) {
             effects.push_back(nodeId);
             effectRelations.push_back(relation.relation);
+            std::cout << " (horizontal) - added to effects list" << std::endl;
+        } else {
+            std::cout << " (not horizontal) - skipped" << std::endl;
         }
     }
+    std::cout << "    Found " << effects.size() << " horizontal effects" << std::endl;
     
     // Check conditions 2.1, 2.2, and 2.3
     bool condition2_1 = false;  // This cause is the SOLE cause of the input effect
@@ -430,73 +441,112 @@ SituationInstance::State SituationReasoner::determineCauseState(long causeId, lo
     bool condition2_3 = false;  // All effects have AND relations and non-input effects are UNTRIGGERED
     
     // Condition 2.1: Check if this cause is the SOLE cause of the input effect
+    std::cout << "\n  Checking if " << causeId << " is the SOLE cause of effect " << effectId << ":" << std::endl;
     const SituationNode& effectNode = graph.getNode(effectId);
     bool isSoleCause = true;
     for (long otherCauseId : effectNode.causes) {
         if (otherCauseId != causeId) {
+            std::cout << "    Checking other cause " << otherCauseId << ": ";
             const SituationRelation* relation = graph.getRelation(otherCauseId, effectId);
             if (relation && relation->type == SituationRelation::H) {
+                std::cout << "has horizontal relation - not sole cause" << std::endl;
                 isSoleCause = false;
                 break;
             }
+            std::cout << "no horizontal relation" << std::endl;
         }
     }
     condition2_1 = isSoleCause;
+    std::cout << "    Is sole cause: " << (isSoleCause ? "true" : "false") << std::endl;
     
     // Check if all relations are of the same type
+    std::cout << "\n  Checking relation types:" << std::endl;
     bool allOr = true;
     bool allAnd = true;
+    int i = 0;
     for (auto rel : effectRelations) {
+        std::cout << "    Relation " << i << ": type=" << rel 
+                  << " (SOLE=0, AND=1, OR=2)" << std::endl;
         if (rel != SituationRelation::OR) allOr = false;
         if (rel != SituationRelation::AND) allAnd = false;
+        i++;
     }
     
     // Condition 2.2: All effects of this cause have OR relations
     condition2_2 = allOr;
+    std::cout << "    All relations are OR: " << (allOr ? "true" : "false") << std::endl;
+    std::cout << "    All relations are AND: " << (allAnd ? "true" : "false") << std::endl;
     
     // Condition 2.3: All effects have AND relations and all effects except the input are UNTRIGGERED
+    std::cout << "\n  Checking condition 2.3 (all AND relations and other effects untriggered):" << std::endl;
     if (allAnd) {
+        std::cout << "    All relations are AND - checking other effects" << std::endl;
         bool allOtherEffectsUntriggered = true;
         for (long otherEffectId : effects) {
             if (otherEffectId != effectId) {
                 SituationInstance& otherEffectInstance = instanceMap[otherEffectId];
+                std::cout << "    Checking effect " << otherEffectId << ": state=" << otherEffectInstance.state << std::endl;
                 if (otherEffectInstance.state == SituationInstance::TRIGGERED || otherEffectInstance.state == SituationInstance::TRIGGERING) {
+                    std::cout << "      Effect is TRIGGERED/TRIGGERING - condition fails" << std::endl;
                     allOtherEffectsUntriggered = false;
                     break;
                 }
+                std::cout << "      Effect is untriggered" << std::endl;
             }
         }
         condition2_3 = allOtherEffectsUntriggered;
+        std::cout << "    All other effects untriggered: " << (allOtherEffectsUntriggered ? "true" : "false") << std::endl;
+    } else {
+        std::cout << "    Not all relations are AND - condition 2.3 is false" << std::endl;
     }
     
     // Final condition: Condition 1 AND (Condition 2.1 OR Condition 2.2 OR Condition 2.3)
     // Note: Condition 1 is already checked at the start
+    std::cout << "\n  Final condition check:" << std::endl;
+    std::cout << "    Condition 2.1 (sole cause): " << (condition2_1 ? "true" : "false") << std::endl;
+    std::cout << "    Condition 2.2 (all OR): " << (condition2_2 ? "true" : "false") << std::endl;
+    std::cout << "    Condition 2.3 (all AND + untriggered): " << (condition2_3 ? "true" : "false") << std::endl;
+    
     if (condition2_1 || condition2_2 || condition2_3) {
+        std::cout << "  At least one condition is true - returning TRIGGERED" << std::endl;
         return SituationInstance::TRIGGERED;
     }
     
+    std::cout << "  No conditions are true - returning UNDETERMINED" << std::endl;
     return SituationInstance::UNDETERMINED;
 }
 
 // Helper function for downward retrospection
 SituationInstance::State SituationReasoner::determineChildState(long parentId, long childId, SituationGraph& graph) {
+    std::cout << "\nDetermining child state for parent=" << parentId << ", child=" << childId << std::endl;
+    
     const SituationNode& parentNode = graph.getNode(parentId);
     SituationInstance& parentInstance = instanceMap[parentId];
+    std::cout << "  Parent instance state: " << parentInstance.state 
+              << " (0=UNTRIGGERED, 1=TRIGGERING, 2=TRIGGERED, 3=UNDETERMINED)" << std::endl;
     
     // Condition 1: Parent node must be TRIGGERED
-    if (parentInstance.state != SituationInstance::TRIGGERED || parentInstance.state != SituationInstance::TRIGGERING) {
+    if (parentInstance.state != SituationInstance::TRIGGERED && parentInstance.state != SituationInstance::TRIGGERING) {
+        std::cout << "  Condition 1 failed: Parent is neither TRIGGERED nor TRIGGERING" << std::endl;
         return SituationInstance::UNDETERMINED;
     }
+    std::cout << "  Condition 1 passed: Parent is TRIGGERED or TRIGGERING" << std::endl;
     
     // Get all V-type child relations
     std::vector<long> vChildren;
     std::vector<SituationRelation::Relation> vRelations;
+    std::cout << "\n  Getting all vertical relations from parent " << parentId << ":" << std::endl;
     for (const auto& [nodeId, relation] : graph.getOutgoingRelations(parentId)) {
+        std::cout << "    Checking relation to " << nodeId << ": type=" << relation.type;
         if (relation.type == SituationRelation::V) {
             vChildren.push_back(nodeId);
             vRelations.push_back(relation.relation);
+            std::cout << " (vertical) - added to children list" << std::endl;
+        } else {
+            std::cout << " (not vertical) - skipped" << std::endl;
         }
     }
+    std::cout << "    Found " << vChildren.size() << " vertical children" << std::endl;
     
     // Check conditions 2.a, 2.b, and 2.c
     bool condition2a = false;  // Node B is the only child
@@ -504,52 +554,88 @@ SituationInstance::State SituationReasoner::determineChildState(long parentId, l
     bool condition2c = false;  // All AND relations and others TRIGGERED
     
     // Condition 2.a: Node B is the only child
+    std::cout << "\n  Checking condition 2.a (is only child):" << std::endl;
     condition2a = (vChildren.size() == 1 && vChildren[0] == childId);
+    std::cout << "    Number of children: " << vChildren.size() << std::endl;
+    if (vChildren.size() == 1) {
+        std::cout << "    Only child ID: " << vChildren[0] << ", target child ID: " << childId << std::endl;
+    }
+    std::cout << "    Is only child: " << (condition2a ? "true" : "false") << std::endl;
     
     // Check if all relations are of the same type
+    std::cout << "\n  Checking relation types:" << std::endl;
     bool allOr = true;
     bool allAnd = true;
+    int i = 0;
     for (auto rel : vRelations) {
+        std::cout << "    Relation " << i << ": type=" << rel 
+                  << " (SOLE=0, AND=1, OR=2)" << std::endl;
         if (rel != SituationRelation::OR) allOr = false;
         if (rel != SituationRelation::AND) allAnd = false;
+        i++;
     }
+    std::cout << "    All relations are OR: " << (allOr ? "true" : "false") << std::endl;
+    std::cout << "    All relations are AND: " << (allAnd ? "true" : "false") << std::endl;
     
     // Condition 2.b: All relations are OR (conjunction) and others UNTRIGGERED
+    std::cout << "\n  Checking condition 2.b (all OR relations and others untriggered):" << std::endl;
     if (allOr) {
+        std::cout << "    All relations are OR - checking other children" << std::endl;
         bool allOthersUntriggered = true;
         for (long evId : vChildren) {
             if (evId != childId) {
                 SituationInstance& evInstance = instanceMap[evId];
+                std::cout << "    Checking child " << evId << ": state=" << evInstance.state << std::endl;
                 if (evInstance.state != SituationInstance::UNTRIGGERED) {
+                    std::cout << "      Child is not UNTRIGGERED - condition fails" << std::endl;
                     allOthersUntriggered = false;
                     break;
                 }
+                std::cout << "      Child is untriggered" << std::endl;
             }
         }
         condition2b = allOthersUntriggered;
+        std::cout << "    All other children untriggered: " << (allOthersUntriggered ? "true" : "false") << std::endl;
+    } else {
+        std::cout << "    Not all relations are OR - condition 2.b is false" << std::endl;
     }
     
     // Condition 2.c: All relations are AND (disjunction) and others TRIGGERED
+    std::cout << "\n  Checking condition 2.c (all AND relations and others triggered):" << std::endl;
     if (allAnd) {
+        std::cout << "    All relations are AND - checking other children" << std::endl;
         bool allOthersTriggered = true;
         for (long evId : vChildren) {
             if (evId != childId) {
                 SituationInstance& evInstance = instanceMap[evId];
+                std::cout << "    Checking child " << evId << ": state=" << evInstance.state << std::endl;
                 if (evInstance.state != SituationInstance::TRIGGERED) {
+                    std::cout << "      Child is not TRIGGERED - condition fails" << std::endl;
                     allOthersTriggered = false;
                     break;
                 }
+                std::cout << "      Child is triggered" << std::endl;
             }
         }
         condition2c = allOthersTriggered;
+        std::cout << "    All other children triggered: " << (allOthersTriggered ? "true" : "false") << std::endl;
+    } else {
+        std::cout << "    Not all relations are AND - condition 2.c is false" << std::endl;
     }
     
     // Final condition: Condition 1 AND (Condition 2.a OR Condition 2.b OR Condition 2.c)
     // Note: Condition 1 is already checked at the start
+    std::cout << "\n  Final condition check:" << std::endl;
+    std::cout << "    Condition 2.a (only child): " << (condition2a ? "true" : "false") << std::endl;
+    std::cout << "    Condition 2.b (all OR + untriggered): " << (condition2b ? "true" : "false") << std::endl;
+    std::cout << "    Condition 2.c (all AND + triggered): " << (condition2c ? "true" : "false") << std::endl;
+    
     if (condition2a || condition2b || condition2c) {
+        std::cout << "  At least one condition is true - returning TRIGGERED" << std::endl;
         return SituationInstance::TRIGGERED;
     }
     
+    std::cout << "  No conditions are true - returning UNDETERMINED" << std::endl;
     return SituationInstance::UNDETERMINED;
 }
 

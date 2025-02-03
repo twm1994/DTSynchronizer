@@ -54,8 +54,7 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
                   << result.edges.size() << " edges" << std::endl;
         
         // Create new graph with only causally connected nodes
-        for (const auto& node : result.nodes) {
-            long nodeId = node->id;
+        for (const auto& nodeId : result.nodes) {
             auto it = _nodeCache.find(nodeId);
             if (it != _nodeCache.end()) {
                 causalGraph.situationMap[nodeId] = it->second;
@@ -724,76 +723,108 @@ bool BNInferenceEngine::isDConnected(unsigned long start, unsigned long end,
 // }
 
 CausalConnection BNInferenceEngine::findCausallyConnectedNodes(const std::map<long, SituationInstance>& instanceMap) {
-    std::cout << "Finding causally connected nodes..." << std::endl;
+    std::cout << "\nFinding causally connected nodes..." << std::endl;
     
     CausalConnection result;
     
-    // First, find all triggered nodes and their neighbors
-    for (const auto& [nodeId, instance] : instanceMap) {
-        std::cout << "Checking node " << nodeId << " (state: " << instance.state << ")" << std::endl;
-        if (instance.state == SituationInstance::TRIGGERED) {
-            std::cout << "  Node " << nodeId << " is triggered" << std::endl;
-            const SituationNode& trigNode = _sg.getNode(nodeId);
-            auto connectedNodes = findConnectedNodes(trigNode);
-            result.nodes.insert(connectedNodes.begin(), connectedNodes.end());
-            result.nodes.insert(&trigNode);  // Add the triggered node itself
-        }
-    }
-    
-    // Then find edges between these nodes
-    for (const auto& node : result.nodes) {
-        // Check causes
-        for (const auto& causeId : node->causes) {
-            const SituationNode& causeNode = _sg.getNode(causeId);
-            auto causeIt = std::find_if(result.nodes.begin(), result.nodes.end(),
-                [&causeNode](const SituationNode* n) { return n->id == causeNode.id; });
-            if (causeIt != result.nodes.end()) {
-                result.edges.insert(std::make_pair(*causeIt, node));
-                std::cout << "Added edge: " << (*causeIt)->id << " -> " << node->id << std::endl;
+    try {
+        // First, find all triggered nodes and their neighbors
+        std::cout << "Processing " << instanceMap.size() << " instances" << std::endl;
+        for (const auto& [nodeId, instance] : instanceMap) {
+            try {
+                std::cout << "Checking node " << nodeId << " (state: " << instance.state << ")" << std::endl;
+                
+                // Verify node exists in graph
+                if (!_sg.hasNode(nodeId)) {
+                    std::cout << "Warning: Node " << nodeId << " not found in graph" << std::endl;
+                    continue;
+                }
+                
+                if (instance.state == SituationInstance::TRIGGERED) {
+                    std::cout << "  Node " << nodeId << " is triggered" << std::endl;
+                    const SituationNode& trigNode = _sg.getNode(nodeId);
+                    std::cout << "  Retrieved node from graph. Finding connected nodes..." << std::endl;
+                    
+                    auto connectedNodes = findConnectedNodes(trigNode);
+                    std::cout << "  Found " << connectedNodes.size() << " connected nodes" << std::endl;
+                    
+                    result.nodes.insert(connectedNodes.begin(), connectedNodes.end());
+                    result.nodes.insert(nodeId);  // Add the triggered node itself
+                    std::cout << "  Added nodes to result set. Current size: " << result.nodes.size() << std::endl;
+                }
+            } catch (const std::exception& e) {
+                std::cout << "Error processing node " << nodeId << ": " << e.what() << std::endl;
             }
         }
         
-        // Check evidences
-        for (const auto& evidenceId : node->evidences) {
-            const SituationNode& evidenceNode = _sg.getNode(evidenceId);
-            auto evidenceIt = std::find_if(result.nodes.begin(), result.nodes.end(),
-                [&evidenceNode](const SituationNode* n) { return n->id == evidenceNode.id; });
-            if (evidenceIt != result.nodes.end()) {
-                result.edges.insert(std::make_pair(node, *evidenceIt));
-                std::cout << "Added edge: " << node->id << " -> " << (*evidenceIt)->id << std::endl;
+        std::cout << "\nProcessing edges between nodes..." << std::endl;
+        // Then find edges between these nodes
+        for (const auto& nodeId : result.nodes) {
+            try {
+                // Check causes
+                std::cout << "Checking causes for node " << nodeId << std::endl;
+                const SituationNode& node = _sg.getNode(nodeId);
+                for (const auto& causeId : node.causes) {
+                    if (_sg.hasNode(causeId)) {
+                        auto causeIt = std::find(result.nodes.begin(), result.nodes.end(), causeId);
+                        if (causeIt != result.nodes.end()) {
+                            result.edges.insert(std::make_pair(*causeIt, nodeId));
+                            std::cout << "Added edge: " << (*causeIt) << " -> " << nodeId << std::endl;
+                        }
+                    }
+                }
+                
+                // Check evidences
+                std::cout << "Checking evidences for node " << nodeId << std::endl;
+                for (const auto& evidenceId : node.evidences) {
+                    if (_sg.hasNode(evidenceId)) {
+                        auto evidenceIt = std::find(result.nodes.begin(), result.nodes.end(), evidenceId);
+                        if (evidenceIt != result.nodes.end()) {
+                            result.edges.insert(std::make_pair(nodeId, *evidenceIt));
+                            std::cout << "Added edge: " << nodeId << " -> " << (*evidenceIt) << std::endl;
+                        }
+                    }
+                }
+            } catch (const std::exception& e) {
+                std::cout << "Error processing edges for node " << nodeId << ": " << e.what() << std::endl;
             }
         }
+    } catch (const std::exception& e) {
+        std::cout << "Fatal error in findCausallyConnectedNodes: " << e.what() << std::endl;
     }
     
     std::cout << "Found " << result.nodes.size() << " nodes and " << result.edges.size() << " edges" << std::endl;
     return result;
 }
 
-std::set<const SituationNode*> BNInferenceEngine::findConnectedNodes(const SituationNode& node) {
-    std::set<const SituationNode*> connectedNodes;
+std::set<long> BNInferenceEngine::findConnectedNodes(const SituationNode& node) {
+    std::set<long> connectedNodes;
     
     std::cout << "Finding connected nodes for node " << node.id << std::endl;
     
     // Add causes
     for (const auto& cause : node.causes) {
-        const SituationNode& causeNode = _sg.getNode(cause);
-        connectedNodes.insert(&causeNode);
-        std::cout << "  Added cause: " << causeNode.id << std::endl;
+        if (_sg.hasNode(cause)) {
+            connectedNodes.insert(cause);
+            std::cout << "  Added cause: " << cause << std::endl;
+        }
     }
     
     // Add evidences
     for (const auto& evidence : node.evidences) {
-        const SituationNode& evidenceNode = _sg.getNode(evidence);
-        connectedNodes.insert(&evidenceNode);
-        std::cout << "  Added evidence: " << evidenceNode.id << std::endl;
+        if (_sg.hasNode(evidence)) {
+            connectedNodes.insert(evidence);
+            std::cout << "  Added evidence: " << evidence << std::endl;
+        }
     }
     
     // Add effects (nodes where this node is a cause)
     for (const auto& [id, otherNode] : _sg.situationMap) {
         if (std::find(otherNode.causes.begin(), otherNode.causes.end(), node.id) != otherNode.causes.end()) {
-            const SituationNode& effectNode = _sg.getNode(id);
-            connectedNodes.insert(&effectNode);
-            std::cout << "  Added effect: " << effectNode.id << std::endl;
+            if (_sg.hasNode(id)) {
+                connectedNodes.insert(id);
+                std::cout << "  Added effect: " << id << std::endl;
+            }
         }
     }
     

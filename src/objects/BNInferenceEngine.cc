@@ -152,6 +152,14 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
         nodes.insert(nextIndex);
         nextIndex++;
     }
+
+    // Print node mapping after it's created
+    std::cout << "\nNode to BN index mapping:" << std::endl;
+    std::cout << "Total nodes: " << nodeToIndex.size() << std::endl;
+    for (const auto& [nodeId, idx] : nodeToIndex) {
+        std::cout << "Node ID: " << nodeId << " -> " << idx << std::endl;
+    }
+    std::cout << std::endl;
     
     // Add all edges using the mapped indices
     for (const auto& vertex : vertices) {

@@ -425,21 +425,21 @@ SituationInstance::State SituationReasoner::determineCauseState(long causeId, lo
     }
     std::cout << "  Condition 1 passed: Effect is TRIGGERED or TRIGGERING" << std::endl;
     
-    // Get all effects with type-H relations from this cause
-    std::vector<long> effects;
-    std::vector<SituationRelation::Relation> effectRelations;
-    std::cout << "\n  Getting all horizontal relations from cause " << causeId << ":" << std::endl;
-    for (const auto& [nodeId, relation] : graph.getOutgoingRelations(causeId)) {
-        std::cout << "    Checking relation to " << nodeId << ": type=" << relation.type;
+    // Get all causes with type-H relations to this effect
+    std::vector<long> causes;
+    std::vector<SituationRelation::Relation> causeRelations;
+    std::cout << "\n  Getting all horizontal relations to effect " << effectId << ":" << std::endl;
+    for (const auto& [nodeId, relation] : graph.getIncomingRelations(effectId)) {
+        std::cout << "    Checking relation from " << nodeId << ": type=" << relation.type;
         if (relation.type == SituationRelation::H) {
-            effects.push_back(nodeId);
-            effectRelations.push_back(relation.relation);
-            std::cout << " (horizontal) - added to effects list" << std::endl;
+            causes.push_back(nodeId);
+            causeRelations.push_back(relation.relation);
+            std::cout << " (horizontal) - added to causes list" << std::endl;
         } else {
             std::cout << " (not horizontal) - skipped" << std::endl;
         }
     }
-    std::cout << "    Found " << effects.size() << " horizontal effects" << std::endl;
+    std::cout << "    Found " << causes.size() << " horizontal causes" << std::endl;
     
     // Check conditions 2.1, 2.2, and 2.3
     bool condition2_1 = false;  // This cause is the SOLE cause of the input effect
@@ -470,7 +470,7 @@ SituationInstance::State SituationReasoner::determineCauseState(long causeId, lo
     bool allOr = true;
     bool allAnd = true;
     int i = 0;
-    for (auto rel : effectRelations) {
+    for (auto rel : causeRelations) {
         std::cout << "    Relation " << i << ": type=" << rel 
                   << " (SOLE=0, AND=1, OR=2)" << std::endl;
         if (rel != SituationRelation::OR) allOr = false;
@@ -478,40 +478,40 @@ SituationInstance::State SituationReasoner::determineCauseState(long causeId, lo
         i++;
     }
     
-    // Condition 2.2: All effects of this cause have OR relations
-    condition2_2 = allOr;
+    // Condition 2.2: All causes of this effect have AND relations
+    condition2_2 = allAnd;
     std::cout << "    All relations are OR: " << (allOr ? "true" : "false") << std::endl;
     std::cout << "    All relations are AND: " << (allAnd ? "true" : "false") << std::endl;
     
-    // Condition 2.3: All effects have AND relations and all effects except the input are UNTRIGGERED
-    std::cout << "\n  Checking condition 2.3 (all AND relations and other effects untriggered):" << std::endl;
-    if (allAnd) {
-        std::cout << "    All relations are AND - checking other effects" << std::endl;
-        bool allOtherEffectsUntriggered = true;
-        for (long otherEffectId : effects) {
-            if (otherEffectId != effectId) {
-                SituationInstance& otherEffectInstance = instanceMap[otherEffectId];
-                std::cout << "    Checking effect " << otherEffectId << ": state=" << otherEffectInstance.state << std::endl;
-                if (otherEffectInstance.state == SituationInstance::TRIGGERED || otherEffectInstance.state == SituationInstance::TRIGGERING) {
-                    std::cout << "      Effect is TRIGGERED/TRIGGERING - condition fails" << std::endl;
-                    allOtherEffectsUntriggered = false;
+    // Condition 2.3: All causes of this effect have OR relations and all causes except the input are UNTRIGGERED
+    std::cout << "\n  Checking condition 2.3 (all OR relations and other causes untriggered):" << std::endl;
+    if (allOr) {
+        std::cout << "    All relations are OR - checking other causes" << std::endl;
+        bool allOtherCausesUntriggered = true;
+        for (long otherCauseId : causes) {
+            if (otherCauseId != causeId) {
+                SituationInstance& otherCauseInstance = instanceMap[otherCauseId];
+                std::cout << "    Checking cause " << otherCauseId << ": state=" << otherCauseInstance.state << std::endl;
+                if (otherCauseInstance.state == SituationInstance::TRIGGERED || otherCauseInstance.state == SituationInstance::TRIGGERING) {
+                    std::cout << "      Cause is TRIGGERED/TRIGGERING - condition fails" << std::endl;
+                    allOtherCausesUntriggered = false;
                     break;
                 }
-                std::cout << "      Effect is untriggered" << std::endl;
+                std::cout << "      Cause is untriggered" << std::endl;
             }
         }
-        condition2_3 = allOtherEffectsUntriggered;
-        std::cout << "    All other effects untriggered: " << (allOtherEffectsUntriggered ? "true" : "false") << std::endl;
+        condition2_3 = allOtherCausesUntriggered;
+        std::cout << "    All other causes are untriggered: " << (allOtherCausesUntriggered ? "true" : "false") << std::endl;
     } else {
-        std::cout << "    Not all relations are AND - condition 2.3 is false" << std::endl;
+        std::cout << "    Not all relations are OR - condition 2.3 is false" << std::endl;
     }
     
     // Final condition: Condition 1 AND (Condition 2.1 OR Condition 2.2 OR Condition 2.3)
     // Note: Condition 1 is already checked at the start
     std::cout << "\n  Final condition check:" << std::endl;
     std::cout << "    Condition 2.1 (sole cause): " << (condition2_1 ? "true" : "false") << std::endl;
-    std::cout << "    Condition 2.2 (all OR): " << (condition2_2 ? "true" : "false") << std::endl;
-    std::cout << "    Condition 2.3 (all AND + untriggered): " << (condition2_3 ? "true" : "false") << std::endl;
+    std::cout << "    Condition 2.2 (all AND): " << (condition2_2 ? "true" : "false") << std::endl;
+    std::cout << "    Condition 2.3 (all OR + untriggered): " << (condition2_3 ? "true" : "false") << std::endl;
     
     if (condition2_1 || condition2_2 || condition2_3) {
         std::cout << "  At least one condition is true - returning TRIGGERED" << std::endl;

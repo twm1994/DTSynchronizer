@@ -84,52 +84,72 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
     }
     
     // Step 3: Flatten causal subgraph into single DirectedGraph
-    std::cout << "Flattening causal subgraph..." << std::endl;
+    std::cout << "\nStep 3: Flattening causal subgraph..." << std::endl;
     DirectedGraph causalDGraph;
     
     // First add all vertices
+    std::cout << "Adding vertices to directed graph..." << std::endl;
     for (const auto& [nodeId, _] : causalGraph.situationMap) {
         causalDGraph.add_vertex(nodeId);
+        std::cout << "  Added vertex: " << nodeId << std::endl;
     }
     
     // Then add all edges using cached relations
+    std::cout << "\nAdding edges using cached relations..." << std::endl;
     for (const auto& [nodeId, node] : causalGraph.situationMap) {
-        auto relIt = _relationCache.find(nodeId);
-        if (relIt == _relationCache.end()) continue;
+        std::cout << "Processing node " << nodeId << std::endl;
         
-        const auto& relInfo = relIt->second;
-        
-        // Add edges from all relation types
-        auto addEdgesFromSet = [targetId=nodeId, &causalGraph, &causalDGraph](const std::set<long>& nodes) {
-            for (long parentId : nodes) {
-                if (causalGraph.situationMap.find(parentId) != causalGraph.situationMap.end()) {
-                    causalDGraph.add_edge(parentId, targetId);
-                }
+        // Get all outgoing relations for this node
+        const auto& outgoingRels = _sg.getOutgoingRelations(nodeId);
+        for (const auto& [destId, rel] : outgoingRels) {
+            if (causalGraph.situationMap.find(destId) != causalGraph.situationMap.end()) {
+                std::cout << "  Processing " << rel.relation << " relation..." << std::endl;
+                causalDGraph.add_edge(nodeId, destId);
+                std::cout << "    Added edge: " << nodeId << " -> " << destId << std::endl;
             }
-        };
+        }
         
-        addEdgesFromSet(relInfo.soleNodes);
-        addEdgesFromSet(relInfo.andNodes);
-        addEdgesFromSet(relInfo.orNodes);
-    }
-    
-    // Step 4: Perform subgraph completion if needed
-    if (hasMixedRelations) {
-        std::cout << "Mixed relations detected, performing subgraph completion for " 
-                  << mixedRelationNodes.size() << " nodes..." << std::endl;
-                  
-        _mixedNodeInfo.clear();
-        
-        for (long nodeId : mixedRelationNodes) {
-            auto relIt = _relationCache.find(nodeId);
-            if (relIt != _relationCache.end()) {
-                completeMixedRelationSubgraph(nodeId, causalDGraph, relIt->second.relations, _mixedNodeInfo);
+        // Get all incoming relations for this node
+        const auto& incomingRels = _sg.getIncomingRelations(nodeId);
+        for (const auto& [srcId, rel] : incomingRels) {
+            if (causalGraph.situationMap.find(srcId) != causalGraph.situationMap.end()) {
+                std::cout << "  Processing incoming " << rel.relation << " relation..." << std::endl;
+                causalDGraph.add_edge(srcId, nodeId);
+                std::cout << "    Added edge: " << srcId << " -> " << nodeId << std::endl;
             }
         }
     }
     
-    // Print the causal subgraph
-    std::cout << "Causal subgraph:" << std::endl;
+    // Step 4: Perform subgraph completion if needed
+    if (hasMixedRelations) {
+        std::cout << "\nStep 4: Mixed relations detected, performing subgraph completion..." << std::endl;
+        std::cout << "Found " << mixedRelationNodes.size() << " nodes with mixed relations" << std::endl;
+                  
+        _mixedNodeInfo.clear();
+        
+        for (long nodeId : mixedRelationNodes) {
+            std::cout << "\nProcessing mixed relations for node " << nodeId << std::endl;
+            auto relIt = _relationCache.find(nodeId);
+            if (relIt != _relationCache.end()) {
+                std::cout << "  Found relations in cache, completing subgraph..." << std::endl;
+                completeMixedRelationSubgraph(nodeId, causalDGraph, relIt->second.relations, _mixedNodeInfo);
+                
+                // Log the M and N nodes created
+                auto mnIt = _mixedNodeInfo.find(nodeId);
+                if (mnIt != _mixedNodeInfo.end()) {
+                    std::cout << "  Created M node: " << mnIt->second.first << std::endl;
+                    std::cout << "  Created N node: " << mnIt->second.second << std::endl;
+                }
+            } else {
+                std::cout << "  No relations found in cache for node " << nodeId << std::endl;
+            }
+        }
+    } else {
+        std::cout << "\nStep 4: No mixed relations detected, skipping subgraph completion" << std::endl;
+    }
+    
+    // Print the final causal subgraph
+    std::cout << "\nFinal causal subgraph:" << std::endl;
     causalDGraph.print();
 
     // Step 5: Create Bayesian network for the subgraph
@@ -179,20 +199,42 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
 
     // Step 6: Construct CPTs for the Bayesian Network
     std::cout << "Constructing Conditional Probability Tables..." << std::endl;
+    std::cout << "Number of nodes in causalInstanceMap: " << causalInstanceMap.size() << std::endl;
 
     for (const auto& [nodeId, instance] : causalInstanceMap) {
+        std::cout << "Processing node " << nodeId << std::endl;
         auto nodeIt = _nodeCache.find(nodeId);
-        if (nodeIt == _nodeCache.end()) continue;
+        if (nodeIt == _nodeCache.end()) {
+            std::cout << "Node " << nodeId << " not found in _nodeCache" << std::endl;
+            continue;
+        }
         
         const SituationNode& node = nodeIt->second;
         if (_mixedNodeInfo.find(nodeId) != _mixedNodeInfo.end()) {
+            std::cout << "Node " << nodeId << " has mixed relations" << std::endl;
             // Case 5: Mixed relations - use M and N nodes
             constructMixedRelationCPT(node, _mixedNodeInfo[nodeId], causalInstanceMap);
         } else {
+            std::cout << "Node " << nodeId << " has regular relations" << std::endl;
             // Cases 1-4: Regular CPT construction
             constructCPT(node, causalInstanceMap);
         }
     }
+
+    // Debug output for cptCache content
+    std::cout << "CPT Cache content before building CPT:" << std::endl;
+    for (const auto& [key, value] : cptCache) {
+        std::cout << "Key: (node1=" << std::get<0>(key) 
+                  << ", node2=" << std::get<1>(key) << ")" << std::endl;
+        std::cout << "Relations: {";
+        for (const auto& rel : std::get<2>(key)) {
+            std::cout << "(" << rel.first << "," << rel.second << ") ";
+        }
+        std::cout << "}" << std::endl;
+        std::cout << "Probability: " << value << std::endl;
+        std::cout << "-------------------" << std::endl;
+    }
+
     _BNet->buildCPT(cptCache);
     std::cout << "Bayesian Network Model loading complete.\n" << std::endl;
 }
@@ -776,7 +818,7 @@ CausalConnection BNInferenceEngine::findCausallyConnectedNodes(const std::map<lo
                     if (_sg.hasNode(causeId)) {
                         auto causeIt = std::find(result.nodes.begin(), result.nodes.end(), causeId);
                         if (causeIt != result.nodes.end()) {
-                            result.edges.insert(std::make_pair(*causeIt, nodeId));
+                            result.edges.insert(std::make_pair(*causeIt, nodeId));  // cause -> node
                             std::cout << "Added edge: " << (*causeIt) << " -> " << nodeId << std::endl;
                         }
                     }
@@ -788,8 +830,8 @@ CausalConnection BNInferenceEngine::findCausallyConnectedNodes(const std::map<lo
                     if (_sg.hasNode(evidenceId)) {
                         auto evidenceIt = std::find(result.nodes.begin(), result.nodes.end(), evidenceId);
                         if (evidenceIt != result.nodes.end()) {
-                            result.edges.insert(std::make_pair(nodeId, *evidenceIt));
-                            std::cout << "Added edge: " << nodeId << " -> " << (*evidenceIt) << std::endl;
+                            result.edges.insert(std::make_pair(*evidenceIt, nodeId));  // evidence -> node
+                            std::cout << "Added edge: " << (*evidenceIt) << " -> " << nodeId << std::endl;
                         }
                     }
                 }
@@ -890,10 +932,11 @@ void BNInferenceEngine::initializeCaches(std::map<long, SituationInstance>& inst
         // Initialize relation info for this node
         RelationInfo& relInfo = _relationCache[nodeId];
         
-        // Process causes
+        // Process causes (incoming relations)
         for (const auto& cause : node.causes) {
             const SituationRelation* relation = _sg.getRelation(cause, nodeId);
             if (relation) {
+                // Add incoming relation to current node's sets
                 if (relation->relation == SituationRelation::AND) {
                     relInfo.andNodes.insert(cause);
                 } else if (relation->relation == SituationRelation::OR) {
@@ -905,22 +948,23 @@ void BNInferenceEngine::initializeCaches(std::map<long, SituationInstance>& inst
             }
         }
         
-        // Process evidences
+        // Process evidences (outgoing relations)
         for (const auto& evidence : node.evidences) {
             const SituationRelation* relation = _sg.getRelation(nodeId, evidence);
             if (relation) {
+                // Add to both the current node's relations and the evidence node's relations
                 if (relation->relation == SituationRelation::AND) {
-                    relInfo.andNodes.insert(evidence);
+                    relInfo.andNodes.insert(evidence);  // Keep this node's relation
                 } else if (relation->relation == SituationRelation::OR) {
-                    relInfo.orNodes.insert(evidence);
+                    relInfo.orNodes.insert(evidence);  // Keep this node's relation
                 } else if (relation->relation == SituationRelation::SOLE) {
-                    relInfo.soleNodes.insert(evidence);
+                    relInfo.soleNodes.insert(evidence);  // Keep this node's relation
                 }
                 _weightCache[{nodeId, evidence}] = relation->weight;
             }
         }
         
-        // Pre-compute relations for the node
+        // Pre-compute relations for the node after all relations are properly cached
         relInfo.relations = analyzeNodeRelations(node);
         
         // Cache instance state if available

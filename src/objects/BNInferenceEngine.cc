@@ -363,7 +363,7 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
     unsigned long nodeIdx = nodeMapIt->second;
     
     std::cout << "\nConstructing CPT for node " << node.id << " (mapped to index " << nodeIdx << ")" << std::endl;
-    std::cout << "Relation type: " << static_cast<int>(relations.type) << std::endl;
+    std::cout << "Relation type (0: NONE, 1: SOLE, 2: AND_ONLY, 3: OR_ONLY, 4: MIXED): " << static_cast<int>(relations.type) << std::endl;
     
     // Handle each case based on relation type
     switch (relations.type) {
@@ -418,111 +418,86 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
         }
         
         case RelationType::AND_ONLY: {
-            // First, make sure all parent nodes exist in the map
-            bool allParentsValid = true;
-            for (const auto& andNode : relations.andNodes) {
-                std::string nodeName = std::to_string(andNode);
-                if (_nodeMap.find(nodeName) == _nodeMap.end()) {
-                    allParentsValid = false;
-                    break;
-                }
-            }
-            
-            if (!allParentsValid) {    
-                // Add to cptCache with empty set
-                std::set<std::pair<long, long>> empty_set;
-                unsigned long mappedNodeIdx = nodeIdx;
-                std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(mappedNodeIdx, 0, empty_set);
-                cptCache[setting_0] = 1.0;
-                std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(mappedNodeIdx, 1, empty_set);
-                cptCache[setting_1] = 0.0;
-                break;
-            }
-            
+            // Get list of AND nodes with their weights
             std::vector<long> andNodes(relations.andNodes.begin(), relations.andNodes.end());
-            std::vector<long> andAssignment(andNodes.size(), 0);
+            std::vector<double> parentWeights;
+            std::vector<unsigned long> mappedParentIds;
             
-            size_t combinationCount = 0;
-            do {
-                if (combinationCount >= 32) {
-                    EV_WARN << "Number of AND combinations exceeded 32 for node " << node.id << ". Stopping early." << endl;
-                    break;
-                }
-                combinationCount++;
-                
-                std::set<std::pair<long, long>> parent_states;
-                std::vector<double> weights;
-                bool hasTriggeredParent = false;
-                bool allParentsTriggered = true;
-                
-                // Process current parent states
-                for (size_t i = 0; i < andNodes.size(); ++i) {
-                    std::string nodeName = std::to_string(andNodes[i]);
-                    unsigned long idx = _nodeMap[nodeName];
-                    
-                    // Get parent state and weight
-                    auto weightIt = _weightCache.find({andNodes[i], node.id});
-                    if (weightIt != _weightCache.end()) {
-                        weights.push_back(weightIt->second);
-                    }
-                    
-                    // Check if this parent is triggered
-                    bool isTriggered = (andAssignment[i] == 1);
-                    if (isTriggered) {
-                        hasTriggeredParent = true;
-                    } else {
-                        allParentsTriggered = false;
-                    }
-                    
-                    // Add to parent states set with mapped index
-                    unsigned long mappedParentId = nodeToIndex[andNodes[i]];
-                    parent_states.insert(std::make_pair(mappedParentId, andAssignment[i]));
-                }
-                
-                if (!hasTriggeredParent || !allParentsTriggered) {                 
-                    // Add to cptCache - P(NOT A|B) = 1, P(A|B) = 0
-                    unsigned long mappedNodeIdx = nodeIdx;
-                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(mappedNodeIdx, 0, parent_states);
-                    cptCache[setting_0] = 1.0;
-                    std::cout << "Added CPT entry for node " << mappedNodeIdx << " state 0 with parent states (AND_ONLY case, not all triggered): 1.0" << std::endl;
-                    
-                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(mappedNodeIdx, 1, parent_states);
-                    cptCache[setting_1] = 0.0;
-                    std::cout << "Added CPT entry for node " << mappedNodeIdx << " state 1 with parent states (AND_ONLY case, not all triggered): 0.0" << std::endl;
+            std::cout << "Processing AND_ONLY relation for node " << node.id << ":" << std::endl;
+            std::cout << "  Number of AND parents: " << andNodes.size() << std::endl;
+            
+            // First, collect all parent weights and mapped IDs
+            for (const auto& andNode : andNodes) {
+                auto weightIt = _weightCache.find({andNode, node.id});
+                if (weightIt != _weightCache.end()) {
+                    parentWeights.push_back(weightIt->second);
+                    std::cout << "  Parent " << andNode << " weight: " << weightIt->second << std::endl;
                 } else {
-                    double prob = 1.0;
-                    for (double w : weights) {
-                        prob *= w;
-                    }
-                    
-                    // Add to cptCache - P(NOT A|B) = 1-w, P(A|B) = w
-                    unsigned long mappedNodeIdx = nodeIdx;
-                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(mappedNodeIdx, 0, parent_states);
-                    cptCache[setting_0] = 1.0-prob;
-                    std::cout << "Added CPT entry for node " << mappedNodeIdx << " state 0 with parent states (AND_ONLY case, all triggered): " << 1.0-prob << std::endl;
-                    
-                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(mappedNodeIdx, 1, parent_states);
-                    cptCache[setting_1] = prob;
-                    std::cout << "Added CPT entry for node " << mappedNodeIdx << " state 1 with parent states (AND_ONLY case, all triggered): " << prob << std::endl;
+                    parentWeights.push_back(1.0); // Default weight if not found
+                    std::cout << "  Parent " << andNode << " using default weight: 1.0" << std::endl;
                 }
                 
-                // Update parent assignments for next iteration
-                bool done = true;
-                for (int i = andNodes.size() - 1; i >= 0; --i) {  // Start from rightmost bit
-                    if (andAssignment[i] == 0) {
-                        andAssignment[i] = 1;
-                        done = false;
-                        
-                        // Reset all bits to the right
-                        for (size_t j = i + 1; j < andNodes.size(); ++j) {
-                            andAssignment[j] = 0;
-                        }
-                        break;
-                    }
-                    andAssignment[i] = 0;  // Only flip to 0 if we haven't found a 0 yet
+                // Get mapped parent ID
+                std::string nodeName = std::to_string(andNode);
+                auto nodeMapIt = _nodeMap.find(nodeName);
+                if (nodeMapIt != _nodeMap.end()) {
+                    mappedParentIds.push_back(nodeMapIt->second);
+                    std::cout << "  Parent " << andNode << " mapped to index: " << nodeMapIt->second << std::endl;
+                } else {
+                    std::cout << "  Warning: Parent " << andNode << " not found in node map" << std::endl;
+                    // Add default entries with empty parent set
+                    std::set<std::pair<long, long>> empty_set;
+                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, empty_set);
+                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, empty_set);
+                    cptCache[setting_0] = 1.0;
+                    cptCache[setting_1] = 0.0;
+                    std::cout << "Added default CPT entries for node " << nodeIdx << " with empty parent set" << std::endl;
+                    return;
                 }
-                if (done) break;
-            } while (true); // Continue until we've processed all combinations
+            }
+            
+            // Generate all possible parent state combinations
+            std::vector<int> andAssignment(andNodes.size(), 0);
+            size_t numCombinations = 1 << andNodes.size();
+            
+            for (size_t combination = 0; combination < numCombinations; ++combination) {
+                // Generate this combination's assignment
+                for (size_t i = 0; i < andNodes.size(); ++i) {
+                    andAssignment[i] = (combination & (1 << i)) ? 1 : 0;
+                }
+                
+                // Build parent states set
+                std::set<std::pair<long, long>> parent_states;
+                bool allTriggered = true;
+                double prob = 1.0;
+                
+                std::cout << "\nProcessing combination " << combination << ":" << std::endl;
+                for (size_t i = 0; i < andNodes.size(); ++i) {
+                    parent_states.insert(std::make_pair(mappedParentIds[i], andAssignment[i]));
+                    if (andAssignment[i] == 1) {
+                        prob *= parentWeights[i];
+                    } else {
+                        allTriggered = false;
+                    }
+                    std::cout << "  Parent " << andNodes[i] << ": state=" << andAssignment[i];
+                    if (andAssignment[i] == 1) std::cout << ", weight=" << parentWeights[i];
+                    std::cout << std::endl;
+                }
+                
+                // Set probabilities based on AND logic
+                double p0 = allTriggered ? (1.0 - prob) : 1.0;
+                double p1 = allTriggered ? prob : 0.0;
+                
+                // Add CPT entries
+                std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, parent_states);
+                std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, parent_states);
+                
+                cptCache[setting_0] = p0;
+                cptCache[setting_1] = p1;
+                
+                std::cout << "  P(" << node.id << "=0|parents) = " << p0 << std::endl;
+                std::cout << "  P(" << node.id << "=1|parents) = " << p1 << std::endl;
+            }
             break;
         }
         

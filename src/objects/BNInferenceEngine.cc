@@ -222,18 +222,25 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
     }
 
     // Debug output for cptCache content
-    std::cout << "CPT Cache content before building CPT:" << std::endl;
-    for (const auto& [key, value] : cptCache) {
-        std::cout << "Key: (node1=" << std::get<0>(key) 
-                  << ", node2=" << std::get<1>(key) << ")" << std::endl;
-        std::cout << "Relations: {";
-        for (const auto& rel : std::get<2>(key)) {
-            std::cout << "(" << rel.first << "," << rel.second << ") ";
+    std::cout << "\n=== CPT Cache Contents ===" << std::endl;
+    if (cptCache.empty()) {
+        std::cout << "CPT Cache is empty!" << std::endl;
+    } else {
+        for (const auto& entry : cptCache) {
+            const auto& key = entry.first;
+            const auto& value = entry.second;
+            std::cout << "\nCPT Entry:" << std::endl;
+            std::cout << "  Node ID: " << std::get<0>(key) << std::endl;
+            std::cout << "  State: " << std::get<1>(key) << std::endl;
+            std::cout << "  Parent States: [";
+            for (const auto& parent : std::get<2>(key)) {
+                std::cout << "(node=" << parent.first << ", state=" << parent.second << ") ";
+            }
+            std::cout << "]" << std::endl;
+            std::cout << "  Probability: " << value << std::endl;
         }
-        std::cout << "}" << std::endl;
-        std::cout << "Probability: " << value << std::endl;
-        std::cout << "-------------------" << std::endl;
     }
+    std::cout << "=======================\n" << std::endl;
 
     _BNet->buildCPT(cptCache);
     std::cout << "Bayesian Network Model loading complete.\n" << std::endl;
@@ -347,9 +354,16 @@ NodeRelations BNInferenceEngine::analyzeNodeRelations(const SituationNode& node)
 
 void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, const NodeRelations& relations) {
     // Get node index in Bayesian network
-    const std::string nodeName = std::to_string(node.id);
-    if (_nodeMap.find(nodeName) == _nodeMap.end()) return;
-    unsigned long nodeIdx = _nodeMap[nodeName];
+    std::string nodeName = std::to_string(node.id);
+    auto nodeMapIt = _nodeMap.find(nodeName);
+    if (nodeMapIt == _nodeMap.end()) {
+        std::cout << "Error: Node " << node.id << " not found in _nodeMap" << std::endl;
+        return;
+    }
+    unsigned long nodeIdx = nodeMapIt->second;
+    
+    std::cout << "\nConstructing CPT for node " << node.id << " (mapped to index " << nodeIdx << ")" << std::endl;
+    std::cout << "Relation type: " << static_cast<int>(relations.type) << std::endl;
     
     // Handle each case based on relation type
     switch (relations.type) {
@@ -362,36 +376,44 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
             * For the second case, p is determined by the expert
             * Here, we assume the first case and set node is untriggered by default    
             */ 
-            std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, empty_set);
+            unsigned long mappedNodeIdx = nodeIdx;
+            std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(mappedNodeIdx, 0, empty_set);
             cptCache[setting_0] = 1.0;
-            std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, empty_set);
+            std::cout << "Added CPT entry for node " << mappedNodeIdx << " state 0 with empty parent set (NONE case): 1.0" << std::endl;
+            
+            std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(mappedNodeIdx, 1, empty_set);
             cptCache[setting_1] = 0.0;
+            std::cout << "Added CPT entry for node " << mappedNodeIdx << " state 1 with empty parent set (NONE case): 0.0" << std::endl;
             break;
         }
         
         case RelationType::SOLE: {
             auto [connectedId, relation] = relations.soleNodes[0];
             double weight = _weightCache[{connectedId, node.id}];
-            std::string connectedName = std::to_string(connectedId);
-            if (_nodeMap.find(connectedName) == _nodeMap.end()) return;
-            unsigned long connectedIdx = _nodeMap[connectedName];
             
-
-            // Add to cptCache - P(NOT A|NOT B) = 1, P(A|NOT B) = 0
+            // Get mapped indices
+            unsigned long mappedNodeIdx = nodeIdx;
+            unsigned long mappedConnectedIdx = nodeToIndex[connectedId]; // Add to cptCache - P(NOT A|NOT B) = 1, P(A|NOT B) = 0
             std::set<std::pair<long, long>> parent_set_false;
-            parent_set_false.insert(std::make_pair(connectedIdx, 0));
-            std::tuple<long, long, std::set<std::pair<long, long>>> setting_false_0(nodeIdx, 0, parent_set_false);
+            parent_set_false.insert(std::make_pair(mappedConnectedIdx, 0));
+            std::tuple<long, long, std::set<std::pair<long, long>>> setting_false_0(mappedNodeIdx, 0, parent_set_false);
             cptCache[setting_false_0] = 1.0;
-            std::tuple<long, long, std::set<std::pair<long, long>>> setting_false_1(nodeIdx, 1, parent_set_false);
+            std::cout << "Added CPT entry for node " << mappedNodeIdx << " state 0 with parent " << mappedConnectedIdx << " state 0: 1.0" << std::endl;
+            
+            std::tuple<long, long, std::set<std::pair<long, long>>> setting_false_1(mappedNodeIdx, 1, parent_set_false);
             cptCache[setting_false_1] = 0.0;
+            std::cout << "Added CPT entry for node " << mappedNodeIdx << " state 1 with parent " << mappedConnectedIdx << " state 0: 0.0" << std::endl;
 
             // Add to cptCache - P(NOT A|B) = 1-w, P(A|B) = w
             std::set<std::pair<long, long>> parent_set_true;
-            parent_set_true.insert(std::make_pair(connectedIdx, 1));
-            std::tuple<long, long, std::set<std::pair<long, long>>> setting_true_0(nodeIdx, 0, parent_set_true);
+            parent_set_true.insert(std::make_pair(mappedConnectedIdx, 1));
+            std::tuple<long, long, std::set<std::pair<long, long>>> setting_true_0(mappedNodeIdx, 0, parent_set_true);
             cptCache[setting_true_0] = 1.0-weight;
-            std::tuple<long, long, std::set<std::pair<long, long>>> setting_true_1(nodeIdx, 1, parent_set_true);
+            std::cout << "Added CPT entry for node " << mappedNodeIdx << " state 0 with parent " << mappedConnectedIdx << " state 1: " << 1.0-weight << std::endl;
+            
+            std::tuple<long, long, std::set<std::pair<long, long>>> setting_true_1(mappedNodeIdx, 1, parent_set_true);
             cptCache[setting_true_1] = weight;
+            std::cout << "Added CPT entry for node " << mappedNodeIdx << " state 1 with parent " << mappedConnectedIdx << " state 1: " << weight << std::endl;
             break;
         }
         
@@ -409,9 +431,10 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
             if (!allParentsValid) {    
                 // Add to cptCache with empty set
                 std::set<std::pair<long, long>> empty_set;
-                std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, empty_set);
+                unsigned long mappedNodeIdx = nodeIdx;
+                std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(mappedNodeIdx, 0, empty_set);
                 cptCache[setting_0] = 1.0;
-                std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, empty_set);
+                std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(mappedNodeIdx, 1, empty_set);
                 cptCache[setting_1] = 0.0;
                 break;
             }
@@ -451,16 +474,21 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
                         allParentsTriggered = false;
                     }
                     
-                    // Add to parent states set
-                    parent_states.insert(std::make_pair(andNodes[i], andAssignment[i]));
+                    // Add to parent states set with mapped index
+                    unsigned long mappedParentId = nodeToIndex[andNodes[i]];
+                    parent_states.insert(std::make_pair(mappedParentId, andAssignment[i]));
                 }
                 
                 if (!hasTriggeredParent || !allParentsTriggered) {                 
                     // Add to cptCache - P(NOT A|B) = 1, P(A|B) = 0
-                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, parent_states);
+                    unsigned long mappedNodeIdx = nodeIdx;
+                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(mappedNodeIdx, 0, parent_states);
                     cptCache[setting_0] = 1.0;
-                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, parent_states);
+                    std::cout << "Added CPT entry for node " << mappedNodeIdx << " state 0 with parent states (AND_ONLY case, not all triggered): 1.0" << std::endl;
+                    
+                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(mappedNodeIdx, 1, parent_states);
                     cptCache[setting_1] = 0.0;
+                    std::cout << "Added CPT entry for node " << mappedNodeIdx << " state 1 with parent states (AND_ONLY case, not all triggered): 0.0" << std::endl;
                 } else {
                     double prob = 1.0;
                     for (double w : weights) {
@@ -468,22 +496,30 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
                     }
                     
                     // Add to cptCache - P(NOT A|B) = 1-w, P(A|B) = w
-                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, parent_states);
+                    unsigned long mappedNodeIdx = nodeIdx;
+                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(mappedNodeIdx, 0, parent_states);
                     cptCache[setting_0] = 1.0-prob;
-                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, parent_states);
+                    std::cout << "Added CPT entry for node " << mappedNodeIdx << " state 0 with parent states (AND_ONLY case, all triggered): " << 1.0-prob << std::endl;
+                    
+                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(mappedNodeIdx, 1, parent_states);
                     cptCache[setting_1] = prob;
+                    std::cout << "Added CPT entry for node " << mappedNodeIdx << " state 1 with parent states (AND_ONLY case, all triggered): " << prob << std::endl;
                 }
                 
                 // Update parent assignments for next iteration
                 bool done = true;
-                for (size_t i = 0; i < andNodes.size(); ++i) {
+                for (int i = andNodes.size() - 1; i >= 0; --i) {  // Start from rightmost bit
                     if (andAssignment[i] == 0) {
                         andAssignment[i] = 1;
                         done = false;
+                        
+                        // Reset all bits to the right
+                        for (size_t j = i + 1; j < andNodes.size(); ++j) {
+                            andAssignment[j] = 0;
+                        }
                         break;
-                    } else {
-                        andAssignment[i] = 0;
                     }
+                    andAssignment[i] = 0;  // Only flip to 0 if we haven't found a 0 yet
                 }
                 if (done) break;
             } while (true); // Continue until we've processed all combinations
@@ -504,85 +540,215 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
             if (!allParentsValid) {
                 // Add to cptCache with empty set
                 std::set<std::pair<long, long>> empty_set;
-                std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, empty_set);
+                unsigned long mappedNodeIdx = nodeIdx;
+                std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(mappedNodeIdx, 0, empty_set);
                 cptCache[setting_0] = 1.0;
-                std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, empty_set);
+                std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(mappedNodeIdx, 1, empty_set);
                 cptCache[setting_1] = 0.0;
                 break;
             }
             
             std::vector<long> orNodes(relations.orNodes.begin(), relations.orNodes.end());
-            std::vector<long> orAssignment(orNodes.size(), 0);
             
-            size_t combinationCount = 0;
-            do {
-                if (combinationCount >= 32) {
-                    EV_WARN << "Number of OR combinations exceeded 32 for node " << node.id << ". Stopping early." << endl;
-                    break;
+            // Calculate total number of combinations (2^n for n parents)
+            size_t totalCombinations = 1 << orNodes.size();
+            std::cout << "\nProcessing OR relations for node " << node.id << ":" << std::endl;
+            std::cout << "  Total parents: " << orNodes.size() << std::endl;
+            std::cout << "  Total combinations: " << totalCombinations << std::endl;
+            std::cout << "  Parents: ";
+            for (const auto& parent : orNodes) {
+                std::cout << parent << " ";
+            }
+            std::cout << std::endl;
+            
+            // Process each possible combination of parent states
+            for (size_t combination = 0; combination < totalCombinations; ++combination) {
+                std::vector<int> orAssignment(orNodes.size());
+                
+                // Convert combination number to binary assignment
+                for (size_t i = 0; i < orNodes.size(); ++i) {
+                    orAssignment[i] = (combination & (1 << i)) ? 1 : 0;
                 }
-                combinationCount++;
                 
                 std::set<std::pair<long, long>> parent_states;
                 std::vector<double> weights;
                 bool hasTriggeredParent = false;
                 
-                // Process current parent states
+                // Process current parent states and calculate probability
+                double prob = 0.0;  // P(A|parents) for OR relation
+                double untriggeredProb = 1.0;  // Product of (1-w_i) for triggered parents
+                
+                // First pass - collect weights and check states
+                std::vector<double> parentWeights(orNodes.size(), 0.0);
+                for (size_t i = 0; i < orNodes.size(); ++i) {
+                    auto weightIt = _weightCache.find({orNodes[i], node.id});
+                    if (weightIt != _weightCache.end()) {
+                        parentWeights[i] = weightIt->second;
+                    }
+                }
+                
+                // Second pass - calculate probability
                 for (size_t i = 0; i < orNodes.size(); ++i) {
                     std::string nodeName = std::to_string(orNodes[i]);
                     unsigned long idx = _nodeMap[nodeName];
                     
-                    // Get parent state and weight
-                    auto weightIt = _weightCache.find({orNodes[i], node.id});
-                    if (weightIt != _weightCache.end()) {
-                        weights.push_back(weightIt->second);
-                    }
-                    
-                    // Check if this parent is triggered
                     if (orAssignment[i] == 1) {
+                        // Parent is in state 1, apply its weight
+                        untriggeredProb *= (1.0 - parentWeights[i]);
                         hasTriggeredParent = true;
                     }
                     
-                    // Add to parent states set
-                    parent_states.insert(std::make_pair(orNodes[i], orAssignment[i]));
+                    // Add to parent states set with mapped index
+                    unsigned long mappedParentId = nodeToIndex[orNodes[i]];
+                    parent_states.insert(std::make_pair(mappedParentId, orAssignment[i]));
                 }
                 
-                if (!hasTriggeredParent) {                 
-                    // Add to cptCache - P(NOT A|B) = 1, P(A|B) = 0
-                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, parent_states);
-                    cptCache[setting_0] = 1.0;
-                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, parent_states);
-                    cptCache[setting_1] = 0.0;
-                } else {
-                    double not_prob = 1.0;
-                    for (double w : weights) {
-                        not_prob *= (1.0 - w);
+                // Calculate final probability using noisy-OR formula
+                if (hasTriggeredParent) {
+                    prob = 1.0 - untriggeredProb;
+                    std::cout << "OR probability calculation for node " << node.id << ":" << std::endl;
+                    std::cout << "  Parent states and weights:" << std::endl;
+                    for (size_t i = 0; i < orNodes.size(); ++i) {
+                        std::cout << "    Parent " << orNodes[i] << ": state=" << orAssignment[i] 
+                                  << ", weight=" << parentWeights[i] << std::endl;
                     }
-                    
-                    // Add to cptCache - P(NOT A|B) = w, P(A|B) = 1-w
-                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(nodeIdx, 0, parent_states);
-                    cptCache[setting_0] = not_prob;
-                    std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(nodeIdx, 1, parent_states);
-                    cptCache[setting_1] = 1.0-not_prob;
+                    std::cout << "  untriggeredProb = " << untriggeredProb << std::endl;
+                    std::cout << "  final prob = " << prob << std::endl;
                 }
                 
-                // Update parent assignments for next iteration
-                bool done = true;
+                // Add CPT entries with detailed logging
+                unsigned long mappedNodeIdx = nodeIdx;
+                
+                // Calculate final probability if not already done
+                if (hasTriggeredParent && prob == 0.0) {
+                    prob = 1.0 - untriggeredProb;
+                }
+                
+                // Add CPT entries for both child states
+                std::tuple<long, long, std::set<std::pair<long, long>>> setting_0(mappedNodeIdx, 0, parent_states);
+                cptCache[setting_0] = 1.0 - prob;
+                
+                std::tuple<long, long, std::set<std::pair<long, long>>> setting_1(mappedNodeIdx, 1, parent_states);
+                cptCache[setting_1] = prob;
+                
+                // Log the entries
+                std::cout << "\nAdded CPT entries for combination " << combination << ":" << std::endl;
+                std::cout << "  Parent states:";
                 for (size_t i = 0; i < orNodes.size(); ++i) {
-                    if (orAssignment[i] == 0) {
-                        orAssignment[i] = 1;
-                        done = false;
-                        break;
-                    } else {
-                        orAssignment[i] = 0;
-                    }
+                    std::cout << " (" << orNodes[i] << ": " << orAssignment[i] << ")";
                 }
-                if (done) break;
-            } while (true); // Continue until we've processed all combinations
+                std::cout << std::endl;
+                
+                if (hasTriggeredParent) {
+                    std::cout << "  OR probability calculation:" << std::endl;
+                    std::cout << "    untriggeredProb = " << untriggeredProb << std::endl;
+                    std::cout << "    P(" << node.id << "=0|parents) = " << 1.0-prob << std::endl;
+                    std::cout << "    P(" << node.id << "=1|parents) = " << prob << std::endl;
+                } else {
+                    std::cout << "  No triggered parents:" << std::endl;
+                    std::cout << "    P(" << node.id << "=0|parents) = 1.0" << std::endl;
+                    std::cout << "    P(" << node.id << "=1|parents) = 0.0" << std::endl;
+                }
+            }
             break;
         }
         
         case RelationType::MIXED: {
             break;
+        }
+    }
+    
+    // Validate that all required CPT entries exist
+    std::vector<unsigned long> parents = getParents(nodeIdx);
+    
+    // For each possible parent state combination
+    size_t numParents = parents.size();
+    size_t numCombinations = 1 << numParents;
+    
+    // Get the mapped index for this node (we already have it from earlier)
+    unsigned long mappedNodeIdx = nodeIdx;
+    
+    std::cout << "\nValidating CPT entries for node " << node.id << " (mapped index " << mappedNodeIdx << ")" << std::endl;
+    std::cout << "Number of parents: " << numParents << std::endl;
+    std::cout << "Total combinations to check: " << numCombinations << std::endl;
+    
+    // Print parent mapping for debugging
+    std::cout << "Parent mapping:" << std::endl;
+    for (size_t j = 0; j < numParents; ++j) {
+        auto origId = indexToNode[parents[j]];
+        std::cout << "  Parent " << j << ": Original ID " << origId << " -> Mapped ID " << parents[j] << std::endl;
+    }
+    
+    // Debug relation info
+    std::cout << "Relation info for node " << node.id << ":" << std::endl;
+    auto relIt = _relationCache.find(node.id);
+    if (relIt != _relationCache.end()) {
+        const auto& relInfo = relIt->second;
+        std::cout << "  AND nodes: ";
+        for (const auto& andNode : relInfo.andNodes) std::cout << andNode << " ";
+        std::cout << std::endl;
+        std::cout << "  OR nodes: ";
+        for (const auto& orNode : relInfo.orNodes) std::cout << orNode << " ";
+        std::cout << std::endl;
+        std::cout << "  SOLE nodes: ";
+        for (const auto& soleNode : relInfo.soleNodes) std::cout << soleNode << " ";
+        std::cout << std::endl;
+    } else {
+        std::cout << "  No relations found in cache" << std::endl;
+    }
+    
+    for (size_t i = 0; i < numCombinations; ++i) {
+        std::set<std::pair<long, long>> parent_states;
+        for (size_t j = 0; j < numParents; ++j) {
+            unsigned long parentId = parents[j];  // Already mapped index
+            int state = (i & (1 << j)) ? 1 : 0;
+            parent_states.insert(std::make_pair(parentId, state));
+        }
+        
+        // Check both child states (0 and 1)
+        for (int childState = 0; childState <= 1; ++childState) {
+            std::tuple<long, long, std::set<std::pair<long, long>>> key(mappedNodeIdx, childState, parent_states);
+            if (cptCache.find(key) == cptCache.end()) {
+                // Missing entry - add default based on relation type
+                double prob = 0.0;
+                
+                if (relations.type == RelationType::NONE || parent_states.empty()) {
+                    // No parents - default state is 0
+                    prob = (childState == 0) ? 1.0 : 0.0;
+                } else if (relations.type == RelationType::SOLE) {
+                    // For SOLE relations, check if parent is triggered
+                    bool parentTriggered = false;
+                    for (const auto& [parentId, state] : parent_states) {
+                        if (state == 1) {
+                            parentTriggered = true;
+                            break;
+                        }
+                    }
+                    if (parentTriggered) {
+                        // Use the weight from the relation
+                        auto origParentId = indexToNode[parent_states.begin()->first];
+                        auto weightIt = _weightCache.find({origParentId, node.id});
+                        if (weightIt != _weightCache.end()) {
+                            prob = (childState == 1) ? weightIt->second : (1.0 - weightIt->second);
+                        }
+                    } else {
+                        prob = (childState == 0) ? 1.0 : 0.0;
+                    }
+                } else {
+                    // For AND/OR relations, default to untriggered
+                    prob = (childState == 0) ? 1.0 : 0.0;
+                }
+                
+                cptCache[key] = prob;
+                std::cout << "Added missing CPT entry for node " << node.id 
+                        << " (mapped " << mappedNodeIdx << ") state " << childState 
+                        << " with parent states: ";
+                for (const auto& parent : parent_states) {
+                    auto origParentId = indexToNode[parent.first];
+                    std::cout << "(" << origParentId << ": " << parent.second << ") ";
+                }
+                std::cout << ", probability: " << prob << std::endl;
+            }
         }
     }
 }
@@ -885,13 +1051,57 @@ std::set<long> BNInferenceEngine::findConnectedNodes(const SituationNode& node) 
 std::vector<unsigned long> BNInferenceEngine::getParents(unsigned long nodeIdx) const {
     std::vector<unsigned long> parents;
     
-    // Get the number of parents for this node
-    unsigned long num_parents = _BNet->number_of_parents(nodeIdx);
+    // Convert nodeIdx back to actual node ID
+    auto nodeIdIt = indexToNode.find(nodeIdx);
+    if (nodeIdIt == indexToNode.end()) {
+        std::cout << "Warning: Node index " << nodeIdx << " not found in indexToNode map" << std::endl;
+        return parents;
+    }
+    long nodeId = nodeIdIt->second;
     
-    // For each parent index, get the actual parent node index
-    for (unsigned long i = 0; i < num_parents; ++i) {
-        unsigned long parent = _BNet->get_parent(nodeIdx, i);
-        parents.push_back(parent);
+    std::cout << "\nGetting parents for node " << nodeId << " (mapped index " << nodeIdx << ")" << std::endl;
+    
+    // Get relations from cache
+    auto relIt = _relationCache.find(nodeId);
+    if (relIt == _relationCache.end()) {
+        std::cout << "Warning: Node " << nodeId << " not found in relation cache" << std::endl;
+        return parents;
+    }
+    
+    const auto& relInfo = relIt->second;
+    
+    // Add all parent nodes (AND, OR, and SOLE relations)
+    for (const auto& parentId : relInfo.andNodes) {
+        std::string parentName = std::to_string(parentId);
+        auto it = _nodeMap.find(parentName);
+        if (it != _nodeMap.end()) {
+            parents.push_back(it->second);
+            std::cout << "  Found AND parent: " << parentId << " (mapped index " << it->second << ")" << std::endl;
+        } else {
+            std::cout << "  Warning: AND parent " << parentId << " not found in _nodeMap" << std::endl;
+        }
+    }
+    
+    for (const auto& parentId : relInfo.orNodes) {
+        std::string parentName = std::to_string(parentId);
+        auto it = _nodeMap.find(parentName);
+        if (it != _nodeMap.end()) {
+            parents.push_back(it->second);
+            std::cout << "  Found OR parent: " << parentId << " (mapped index " << it->second << ")" << std::endl;
+        } else {
+            std::cout << "  Warning: OR parent " << parentId << " not found in _nodeMap" << std::endl;
+        }
+    }
+    
+    for (const auto& parentId : relInfo.soleNodes) {
+        std::string parentName = std::to_string(parentId);
+        auto it = _nodeMap.find(parentName);
+        if (it != _nodeMap.end()) {
+            parents.push_back(it->second);
+            std::cout << "  Found SOLE parent: " << parentId << " (mapped index " << it->second << ")" << std::endl;
+        } else {
+            std::cout << "  Warning: SOLE parent " << parentId << " not found in _nodeMap" << std::endl;
+        }
     }
     
     return parents;
@@ -925,44 +1135,67 @@ void BNInferenceEngine::initializeCaches(std::map<long, SituationInstance>& inst
     _stateCache.clear();
     _weightCache.clear();
     
-    // Cache all nodes
+    // First pass: Cache all nodes and initialize node mapping
+    unsigned long idx = 0;
     for (const auto& [nodeId, node] : _sg.situationMap) {
         _nodeCache[nodeId] = node;
         
-        // Initialize relation info for this node
+        // Create bidirectional mapping between node IDs and indices
+        std::string nodeName = std::to_string(nodeId);
+        _nodeMap[nodeName] = idx;
+        nodeToIndex[nodeId] = idx;
+        indexToNode[idx] = nodeId;
+        idx++;
+        
+        std::cout << "Mapped node " << nodeId << " to index " << idx-1 << std::endl;
+    }
+    
+    // Second pass: Process relations after all nodes are mapped
+    for (const auto& [nodeId, node] : _sg.situationMap) {
         RelationInfo& relInfo = _relationCache[nodeId];
         
-        // Process causes (incoming relations)
-        for (const auto& cause : node.causes) {
-            const SituationRelation* relation = _sg.getRelation(cause, nodeId);
-            if (relation) {
-                // Add incoming relation to current node's sets
-                if (relation->relation == SituationRelation::AND) {
-                    relInfo.andNodes.insert(cause);
-                } else if (relation->relation == SituationRelation::OR) {
-                    relInfo.orNodes.insert(cause);
-                } else if (relation->relation == SituationRelation::SOLE) {
-                    relInfo.soleNodes.insert(cause);
-                }
-                _weightCache[{cause, nodeId}] = relation->weight;
+        std::cout << "\nProcessing relations for node " << nodeId << ":" << std::endl;
+        
+        // Get all incoming relations
+        auto incomingRelations = _sg.getIncomingRelations(nodeId);
+        for (const auto& [parentId, relation] : incomingRelations) {
+            // Add incoming relation to current node's sets
+            if (relation.relation == SituationRelation::AND) {
+                relInfo.andNodes.insert(parentId);
+                std::cout << "  Added AND parent: " << parentId << std::endl;
+            } else if (relation.relation == SituationRelation::OR) {
+                relInfo.orNodes.insert(parentId);
+                std::cout << "  Added OR parent: " << parentId << std::endl;
+            } else if (relation.relation == SituationRelation::SOLE) {
+                relInfo.soleNodes.insert(parentId);
+                std::cout << "  Added SOLE parent: " << parentId << std::endl;
             }
+            _weightCache[{parentId, nodeId}] = relation.weight;
         }
         
-        // Process evidences (outgoing relations)
-        for (const auto& evidence : node.evidences) {
-            const SituationRelation* relation = _sg.getRelation(nodeId, evidence);
-            if (relation) {
-                // Add to both the current node's relations and the evidence node's relations
-                if (relation->relation == SituationRelation::AND) {
-                    relInfo.andNodes.insert(evidence);  // Keep this node's relation
-                } else if (relation->relation == SituationRelation::OR) {
-                    relInfo.orNodes.insert(evidence);  // Keep this node's relation
-                } else if (relation->relation == SituationRelation::SOLE) {
-                    relInfo.soleNodes.insert(evidence);  // Keep this node's relation
-                }
-                _weightCache[{nodeId, evidence}] = relation->weight;
+        // Get all outgoing relations
+        auto outgoingRelations = _sg.getOutgoingRelations(nodeId);
+        for (const auto& [childId, relation] : outgoingRelations) {
+            RelationInfo& childRelInfo = _relationCache[childId];
+            if (relation.relation == SituationRelation::AND) {
+                childRelInfo.andNodes.insert(nodeId);
+                std::cout << "  Added as AND parent to: " << childId << std::endl;
+            } else if (relation.relation == SituationRelation::OR) {
+                childRelInfo.orNodes.insert(nodeId);
+                std::cout << "  Added as OR parent to: " << childId << std::endl;
+            } else if (relation.relation == SituationRelation::SOLE) {
+                childRelInfo.soleNodes.insert(nodeId);
+                std::cout << "  Added as SOLE parent to: " << childId << std::endl;
             }
+            _weightCache[{nodeId, childId}] = relation.weight;
         }
+        
+        // Pre-compute relations for the node
+        relInfo.relations = analyzeNodeRelations(node);
+        std::cout << "  Relation type: " << static_cast<int>(relInfo.relations.type) << std::endl;
+        std::cout << "  AND nodes: " << relInfo.andNodes.size() << std::endl;
+        std::cout << "  OR nodes: " << relInfo.orNodes.size() << std::endl;
+        std::cout << "  SOLE nodes: " << relInfo.soleNodes.size() << std::endl;
         
         // Pre-compute relations for the node after all relations are properly cached
         relInfo.relations = analyzeNodeRelations(node);
@@ -992,33 +1225,38 @@ void BNInferenceEngine::constructMixedRelationCPT(const SituationNode& node,
     // First set CPT for S based on M,N nodes (AND relation)
     // P(S|M,N) has 8 combinations as specified
     
+    // Get mapped indices for all nodes
+    unsigned long mappedNodeIdx = nodeToIndex[nodeIdx];
+    unsigned long mappedMNodeId = nodeToIndex[mNodeId];
+    unsigned long mappedNNodeId = nodeToIndex[nNodeId];
+
     // Add to cptCache - M=1, N=1, P(S|M,N) = 1, P(NOT S|M,N) = 0
     std::set<std::pair<long, long>> mn_true;
-    mn_true.insert(std::make_pair(mNodeId, 1));
-    mn_true.insert(std::make_pair(nNodeId, 1));
-    cptCache[std::make_tuple(nodeIdx, 1, mn_true)] = 1.0;
-    cptCache[std::make_tuple(nodeIdx, 0, mn_true)] = 0.0;
+    mn_true.insert(std::make_pair(mappedMNodeId, 1));
+    mn_true.insert(std::make_pair(mappedNNodeId, 1));
+    cptCache[std::make_tuple(mappedNodeIdx, 1, mn_true)] = 1.0;
+    cptCache[std::make_tuple(mappedNodeIdx, 0, mn_true)] = 0.0;
     
     // Add to cptCache - M=1, N=0, P(S|M,NOT N) = 0, P(NOT S|M,NOT N) = 1
     std::set<std::pair<long, long>> mn_10;
-    mn_10.insert(std::make_pair(mNodeId, 1));
-    mn_10.insert(std::make_pair(nNodeId, 0));
-    cptCache[std::make_tuple(nodeIdx, 1, mn_10)] = 0.0;
-    cptCache[std::make_tuple(nodeIdx, 0, mn_10)] = 1.0;
+    mn_10.insert(std::make_pair(mappedMNodeId, 1));
+    mn_10.insert(std::make_pair(mappedNNodeId, 0));
+    cptCache[std::make_tuple(mappedNodeIdx, 1, mn_10)] = 0.0;
+    cptCache[std::make_tuple(mappedNodeIdx, 0, mn_10)] = 1.0;
     
     // Add to cptCache - M=0, N=1,  P(S|NOT M,N) = 0, P(NOT S|NOT M,N) = 1
     std::set<std::pair<long, long>> mn_01;
-    mn_01.insert(std::make_pair(mNodeId, 0));
-    mn_01.insert(std::make_pair(nNodeId, 1));
-    cptCache[std::make_tuple(nodeIdx, 1, mn_01)] = 0.0;
-    cptCache[std::make_tuple(nodeIdx, 0, mn_01)] = 1.0;
+    mn_01.insert(std::make_pair(mappedMNodeId, 0));
+    mn_01.insert(std::make_pair(mappedNNodeId, 1));
+    cptCache[std::make_tuple(mappedNodeIdx, 1, mn_01)] = 0.0;
+    cptCache[std::make_tuple(mappedNodeIdx, 0, mn_01)] = 1.0;
     
     // Add to cptCache - M=0, N=0, P(S|NOT M,NOT N) = 0, P(NOT S|NOT M,NOT N) = 1
     std::set<std::pair<long, long>> mn_false;
-    mn_false.insert(std::make_pair(mNodeId, 0));
-    mn_false.insert(std::make_pair(nNodeId, 0));
-    cptCache[std::make_tuple(nodeIdx, 1, mn_false)] = 0.0;
-    cptCache[std::make_tuple(nodeIdx, 0, mn_false)] = 1.0;
+    mn_false.insert(std::make_pair(mappedMNodeId, 0));
+    mn_false.insert(std::make_pair(mappedNNodeId, 0));
+    cptCache[std::make_tuple(mappedNodeIdx, 1, mn_false)] = 0.0;
+    cptCache[std::make_tuple(mappedNodeIdx, 0, mn_false)] = 1.0;
 
     // Get relations for M and N nodes
     NodeRelations relations = analyzeNodeRelations(node);

@@ -348,9 +348,8 @@ const SituationRelation* SituationGraph::getRelation(long src, long dest) const 
     return &(it->second);
 }
 
-const std::map<long, SituationRelation>& SituationGraph::getOutgoingRelations(long nodeId) const {
-    static std::map<long, SituationRelation> outgoing;
-    outgoing.clear();
+std::map<long, SituationRelation> SituationGraph::getOutgoingRelations(long nodeId) const {
+    std::map<long, SituationRelation> outgoing;
     
     for (const auto& rel : relationMap) {
         if (std::get<0>(rel.first) == nodeId) {  // If this relation starts from nodeId

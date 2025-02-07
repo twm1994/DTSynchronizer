@@ -25,8 +25,12 @@ void DirectedGraph::add_vertex(long vertex) {
 
 // Function to add an edge from vertices u to v of the graph
 void DirectedGraph::add_edge(long src, long dest) {
-    // Add edge from u to v
-    adjList[src].push_back(dest);
+    // Check if edge already exists
+    auto& edges = adjList[src];
+    if (std::find(edges.begin(), edges.end(), dest) == edges.end()) {
+        // Add edge from u to v only if it doesn't exist
+        edges.push_back(dest);
+    }
 }
 
 void DirectedGraph::DFS_topological(unordered_map<long, bool> &visited, stack<long> &st,

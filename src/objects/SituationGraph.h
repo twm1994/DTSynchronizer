@@ -71,7 +71,7 @@ public:
     int modelHeight() const;
     SituationNode getNode(long id) const;
     const SituationRelation* getRelation(long src, long dest) const;
-    const std::map<long, SituationRelation>& getOutgoingRelations(long nodeId) const;
+    std::map<long, SituationRelation> getOutgoingRelations(long nodeId) const;
     const std::map<long, SituationRelation> getIncomingRelations(long nodeId) const;
     int numOfNodes() const;
     void print(std::ostream& os = std::cout);

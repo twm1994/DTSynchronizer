@@ -277,8 +277,13 @@ void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstan
     for (auto& instance : instanceMap) {
         long sid = instance.first;
         SituationInstance &si = instance.second;
-        // probability of triggering
-        double p_tr = _BNet->getProbability(sid, 1);
+        // Skip if we don't have a mapping for this node
+        if (nodeToIndex.find(sid) == nodeToIndex.end()) {
+            continue;
+        }
+        
+        // probability of triggering - use mapped index
+        double p_tr = _BNet->getProbability(nodeToIndex[sid], 1);
         if(si.state == SituationInstance::UNDETERMINED){
             if (p_tr >= sg.situationMap[sid].threshold) {
                 si.state = SituationInstance::TRIGGERING;

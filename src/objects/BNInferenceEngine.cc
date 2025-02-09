@@ -629,6 +629,111 @@ void BNInferenceEngine::constructCPTFromRelations(const SituationNode& node, con
         }
         
         case RelationType::MIXED: {
+            // Handle SOLE+AND and SOLE+OR mixed cases
+            if (!relations.soleNodes.empty()) {
+                if (!relations.andNodes.empty() && relations.orNodes.empty()) {
+                    // SOLE + AND case: treat SOLE node as another AND node
+                    NodeRelations modifiedRelations;
+                    modifiedRelations.type = RelationType::AND_ONLY;
+                    
+                    // Add SOLE node to AND nodes
+                    auto [soleId, soleRelation] = relations.soleNodes[0];
+                    modifiedRelations.andNodes = relations.andNodes;
+                    modifiedRelations.andNodes.push_back(soleId);
+                    
+                    // Copy all relations with weights
+                    modifiedRelations.soleNodes = relations.soleNodes;
+                    for (const auto& andNodeId : relations.andNodes) {
+                        if (const SituationRelation* rel = _sg.getRelation(andNodeId, node.id)) {
+                            modifiedRelations.soleNodes.push_back(std::make_pair(andNodeId, rel));
+                        }
+                    }
+                    
+                    // Use existing AND CPT construction
+                    constructCPTFromRelations(node, modifiedRelations);
+                    
+                } else if (relations.andNodes.empty() && !relations.orNodes.empty()) {
+                    // SOLE + OR case
+                    auto [soleId, soleRelation] = relations.soleNodes[0];
+                    double soleWeight = _weightCache[{soleId, node.id}];
+                    unsigned long mappedSoleId = nodeToIndex[soleId];
+                    
+                    // Process all combinations of SOLE and OR parents
+                    size_t numOrNodes = relations.orNodes.size();
+                    size_t totalCombinations = 1 << (numOrNodes + 1); // +1 for SOLE node
+                    
+                    for (size_t combination = 0; combination < totalCombinations; ++combination) {
+                        std::set<std::pair<long, long>> parent_states;
+                        bool soleTriggered = combination & 1; // First bit for SOLE
+                        
+                        // Add SOLE parent state
+                        parent_states.insert(std::make_pair(mappedSoleId, soleTriggered ? 1 : 0));
+                        
+                        // Process OR parents
+                        std::vector<std::pair<long, double>> triggeredOrNodes;
+                        for (size_t i = 0; i < numOrNodes; ++i) {
+                            bool orTriggered = combination & (1 << (i + 1));
+                            auto orNodeId = relations.orNodes[i];
+                            parent_states.insert(std::make_pair(nodeToIndex[orNodeId], orTriggered ? 1 : 0));
+                            
+                            if (orTriggered) {
+                                double weight = _weightCache[{orNodeId, node.id}];
+                                triggeredOrNodes.push_back({orNodeId, weight});
+                            }
+                        }
+                        
+                        // Calculate probabilities based on triggered nodes
+                        double prob0, prob1;
+                        
+                        if (!soleTriggered) {
+                            // If SOLE parent is not triggered, node cannot be triggered
+                            prob0 = 1.0;
+                            prob1 = 0.0;
+                        } else {
+                            // SOLE parent is triggered
+                            if (triggeredOrNodes.empty()) {
+                                // Only SOLE parent is triggered, still cannot be triggered
+                                prob0 = 1.0;
+                                prob1 = 0.0;
+                            } else if (triggeredOrNodes.size() == 1) {
+                                // One OR parent is triggered
+                                // P(node=1) = P(SOLE parent triggered) * P(triggered OR parent)
+                                prob1 = soleWeight * triggeredOrNodes[0].second;
+                                prob0 = 1.0 - prob1;
+                            } else {
+                                // Multiple OR parents are triggered
+                                // Calculate P(OR parents untriggered) = product(1-p) for each triggered OR parent
+                                double orUntriggeredProb = 1.0;
+                                for (const auto& [_, weight] : triggeredOrNodes) {
+                                    orUntriggeredProb *= (1.0 - weight);
+                                }
+                                // P(node=1) = (1-P(OR parents untriggered)) * P(SOLE parent triggered)
+                                prob1 = (1.0 - orUntriggeredProb) * soleWeight;
+                                prob0 = 1.0 - prob1;
+                            }
+                        }
+                        
+                        // Add CPT entries
+                        std::tuple<long, long, std::set<std::pair<long, long>>> key0(nodeIdx, 0, parent_states);
+                        std::tuple<long, long, std::set<std::pair<long, long>>> key1(nodeIdx, 1, parent_states);
+                        cptCache[key0] = prob0;
+                        cptCache[key1] = prob1;
+                        
+                        // Debug output
+                        std::cout << "Added CPT entry for node " << node.id << " state 0 with parent states:";
+                        for (const auto& [pid, state] : parent_states) {
+                            std::cout << " (" << indexToNode[pid] << ": " << state << ")";
+                        }
+                        std::cout << " , probability: " << prob0 << std::endl;
+                        
+                        std::cout << "Added CPT entry for node " << node.id << " state 1 with parent states:";
+                        for (const auto& [pid, state] : parent_states) {
+                            std::cout << " (" << indexToNode[pid] << ": " << state << ")";
+                        }
+                        std::cout << " , probability: " << prob1 << std::endl;
+                    }
+                }
+            }
             break;
         }
     }
@@ -1286,6 +1391,15 @@ void BNInferenceEngine::constructMixedRelationCPT(const SituationNode& node,
 void BNInferenceEngine::completeMixedRelationSubgraph(long nodeId, DirectedGraph& causalDGraph, 
                                                    const NodeRelations& relations,
                                                    std::map<long, std::pair<long, long>>& mixedNodeInfo) {
+    // Only create M and N nodes if we have both AND and OR relations
+    bool hasAndRelations = !relations.andNodes.empty();
+    bool hasOrRelations = !relations.orNodes.empty();
+    
+    if (!hasAndRelations || !hasOrRelations) {
+        // If we only have one type of relation (AND or OR), no need for M/N nodes
+        return;
+    }
+    
     // Create M and N nodes with IDs based on original node
     long mNodeId = nodeId * 10 + 1;  // M node ID
     long nNodeId = nodeId * 10 + 2;  // N node ID
@@ -1306,10 +1420,30 @@ void BNInferenceEngine::completeMixedRelationSubgraph(long nodeId, DirectedGraph
     mRelInfo.relations.type = RelationType::AND_ONLY;
     nRelInfo.relations.type = RelationType::OR_ONLY;
     
+    // First handle SOLE relations - keep them unchanged
+    for (const auto& solePair : relations.soleNodes) {
+        long soleNodeId = solePair.first;
+        // Ensure the edge exists and keep it as is
+        try {
+            const auto& adjList = causalDGraph.getAdjacencyList(soleNodeId);
+            if (std::find(adjList.begin(), adjList.end(), nodeId) == adjList.end()) {
+                // Add the edge if it doesn't exist
+                causalDGraph.add_edge(soleNodeId, nodeId);
+            }
+        } catch (const std::out_of_range&) {
+            continue;
+        }
+    }
+    
     // Update edges: AND nodes -> M, OR nodes -> N
     // Redirect AND node edges to M
     for (const auto& andNodeId : relations.andNodes) {
-        // Get adjacency list to check if edge exists
+        // Skip if this is also a SOLE relation
+        if (std::any_of(relations.soleNodes.begin(), relations.soleNodes.end(),
+                       [andNodeId](const auto& p) { return p.first == andNodeId; })) {
+            continue;
+        }
+        
         try {
             const auto& adjList = causalDGraph.getAdjacencyList(andNodeId);
             // If there's a direct edge to nodeId, remove it and add edge to M
@@ -1318,14 +1452,18 @@ void BNInferenceEngine::completeMixedRelationSubgraph(long nodeId, DirectedGraph
                 causalDGraph.add_edge(andNodeId, mNodeId);
             }
         } catch (const std::out_of_range&) {
-            // Node doesn't exist in graph, skip it
             continue;
         }
     }
     
     // Redirect OR node edges to N
     for (const auto& orNodeId : relations.orNodes) {
-        // Get adjacency list to check if edge exists
+        // Skip if this is also a SOLE relation
+        if (std::any_of(relations.soleNodes.begin(), relations.soleNodes.end(),
+                       [orNodeId](const auto& p) { return p.first == orNodeId; })) {
+            continue;
+        }
+        
         try {
             const auto& adjList = causalDGraph.getAdjacencyList(orNodeId);
             // If there's a direct edge to nodeId, remove it and add edge to N
@@ -1334,7 +1472,6 @@ void BNInferenceEngine::completeMixedRelationSubgraph(long nodeId, DirectedGraph
                 causalDGraph.add_edge(orNodeId, nNodeId);
             }
         } catch (const std::out_of_range&) {
-            // Node doesn't exist in graph, skip it
             continue;
         }
     }

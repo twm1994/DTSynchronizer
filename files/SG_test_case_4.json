@@ -1,0 +1,110 @@
+{
+  "layers": [
+    [
+      {
+        "ID": 300,
+        "Predecessors": null,
+        "Children": [
+          {
+            "ID": 200,
+            "Weight-y": 0.86,
+            "Relation": 2
+          },
+          {
+            "ID": 201,
+            "Weight-y": 0.85,
+            "Relation": 2
+          }
+        ],
+        "Duration": 500,
+        "Cycle": 500,
+        "Threshold": 0.82,
+        "type": 0
+      }
+    ],
+    [
+      {
+        "ID": 200,
+        "Predecessors": null,
+        "Children": [
+          {
+            "ID": 100,
+            "Weight-y": 0.7,
+            "Relation": 2
+          },
+          {
+            "ID": 101,
+            "Weight-y": 0.8,
+            "Relation": 2
+          }
+        ],
+        "Duration": 500,
+        "Cycle": 500,
+        "Threshold": 0.9,
+        "type": 0
+      },
+      {
+        "ID": 201,
+        "Predecessors": null,
+        "Children":  [
+          {
+            "ID": 103,
+            "Weight-y": 0.75,
+            "Relation": 2
+          },
+          {
+            "ID": 104,
+            "Weight-y": 0.82,
+            "Relation": 2
+          }
+        ],
+        "Duration": 500,
+        "Cycle": 500,
+        "Threshold": 0.75,
+        "type": 0
+      }
+    ],
+    [
+      {
+        "ID": 100,
+        "Predecessors": null,
+        "Children": null,
+        "Duration": 500,
+        "Cycle": 500,
+        "Threshold": 0.92,
+        "BaseBelief": 0.84,
+        "type": 0
+      },
+      {
+        "ID": 101,
+        "Predecessors": null,
+        "Children": null,
+        "Duration": 500,
+        "Cycle": 500,
+        "Threshold": 0.88,
+        "BaseBelief": 0.86,
+        "type": 0
+      },
+      {
+        "ID": 103,
+        "Predecessors": null,
+        "Children": null,
+        "Duration": 500,
+        "Cycle": 500,
+        "Threshold": 0.83,
+        "BaseBelief": 0.95,
+        "type": 0
+      },
+      {
+        "ID": 104,
+        "Predecessors": null,
+        "Children": null,
+        "Duration": 500,
+        "Cycle": 500,
+        "Threshold": 0.81,
+        "BaseBelief": 0.93,
+        "type": 0
+      }
+    ]
+  ]
+}

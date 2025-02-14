@@ -8,12 +8,12 @@
           {
             "ID": 203,
             "Weight-y": 0.98,
-            "Relation": 2
+            "Relation": 1
           },
           {
             "ID": 204,
             "Weight-y": 0.9,
-            "Relation": 2
+            "Relation": 1
           }
         ],
         "Duration": 3000,
@@ -26,100 +26,69 @@
       {
         "ID": 200,
         "Predecessors": null,
-        "Children": null,
+        "Children": [
+          {
+            "ID": 100,
+            "Weight-y": 0.7,
+            "Relation": 1
+          },
+          {
+            "ID": 101,
+            "Weight-y": 0.8,
+            "Relation": 1
+          },
+          {
+            "ID": 102,
+            "Weight-y": 0.9,
+            "Relation": 1
+          },
+          {
+            "ID": 105,
+            "Weight-y": 0.76,
+            "Relation": 1
+          },
+          {
+            "ID": 106,
+            "Weight-y": 0.85,
+            "Relation": 1
+          },
+          {
+            "ID": 107,
+            "Weight-y": 0.94,
+            "Relation": 1
+          }
+        ],
         "Duration": 2000,
         "Cycle": 2000,
-        "Threshold": 0.8,
-        "BaseBelief": 0.93,
+        "Threshold": 0.95,
         "type": 0
       },
       {
         "ID": 201,
-        "Predecessors": null,
-        "Children": null,
-        "Duration": 2000,
-        "Cycle": 500,
-        "Threshold": 0.85,
-        "BaseBelief": 0.9,
-        "type": 0
-      },
-      {
-        "ID": 202,
-        "Predecessors": null,
-        "Children": null,
-        "Duration": 2000,
-        "Cycle": 2000,
-        "Threshold": 0.92,
-        "BaseBelief": 0.91,
-        "type": 0
-      },
-      {
-        "ID": 203,
         "Predecessors": [
           {
             "ID": 200,
-            "Weight-x": 0.94,
-            "Relation": 1
-          },
-          {
-            "ID": 201,
-            "Weight-x": 0.94,
-            "Relation": 1
-          },          
-          {
-            "ID": 202,
-            "Weight-x": 0.94,
-            "Relation": 1
-          }
-        ],
-        "Children": [
-          {
-            "ID": 100,
-            "Weight-y": 0.96,
-            "Relation": 2
-          },
-          {
-            "ID": 101,
-            "Weight-y": 0.96,
-            "Relation": 2
-          },          
-          {
-            "ID": 102,
-            "Weight-y": 0.85,
-            "Relation": 2
-          }
-        ],
-        "Duration": 1500,
-        "Cycle": 2000,
-        "Threshold": 0.77,
-        "type": 0
-      },
-      {
-        "ID": 204,
-        "Predecessors": [
-          {
-            "ID": 203,
-            "Weight-x": 0.94,
-            "Relation": 1
+            "Weight-x": 0.9,
+            "Relation": 0
           }
         ],
         "Children": [
           {
             "ID": 103,
-            "Weight-y": 0.96,
-            "Relation": 2
+            "Weight-y": 0.95,
+            "Relation": 1
           },
           {
             "ID": 104,
-            "Weight-y": 0.96,
-            "Relation": 2
+            "Weight-y": 0.98,
+            "Relation": 1
           }
         ],
         "Duration": 2000,
         "Cycle": 2000,
         "Threshold": 0.92,
         "type": 0
-      }     
+      }
     ],
     [
       {
@@ -170,6 +139,36 @@
         "Cycle": 3000,
         "Threshold": 0.81,
         "BaseBelief": 0.93,
+        "type": 0
+      },
+      {
+        "ID": 105,
+        "Predecessors": null,
+        "Children": null,
+        "Duration": 1000,
+        "Cycle": 2000,
+        "Threshold": 0.89,
+        "BaseBelief": 0.92,
+        "type": 0
+      },
+      {
+        "ID": 106,
+        "Predecessors": null,
+        "Children": null,
+        "Duration": 1000,
+        "Cycle": 2000,
+        "Threshold": 0.85,
+        "BaseBelief": 0.9,
+        "type": 0
+      },
+      {
+        "ID": 107,
+        "Predecessors": null,
+        "Children": null,
+        "Duration": 1000,
+        "Cycle": 2000,
+        "Threshold": 0.9,
+        "BaseBelief": 0.9,
         "type": 0
       }
     ]

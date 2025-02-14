@@ -753,6 +753,7 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
     for (auto& [id, instance] : instanceMap) {
         instance.state = combineStates(instance.stateBuffer);
         if (instance.state == SituationInstance::UNDETERMINED){
+            std::cout << "*** Instance " << id << " is UNDETERMINED and needs refinement\n";
             needRefinement = true;
         }
         // Clear buffer after combining
@@ -761,18 +762,13 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
     printInstances("State Combination");    
 
     // Step 4: Update refinement with Bayesian Network reasoning
-    // if(needRefinement){
-    //     std::cout << "\nStart Bayesian Network Reasoning:\n";
-    //     BNInferenceEngine engine;
-    //     engine.loadModel(workingGraph, instanceMap);
-    //     engine.reason(workingGraph, instanceMap, current, nullptr);
+    if(needRefinement){
+        std::cout << "\nStart Bayesian Network Reasoning:\n";
+        BNInferenceEngine engine;
+        engine.loadModel(workingGraph, instanceMap);
+        engine.reason(workingGraph, instanceMap, current, nullptr);
 
-    // }
-
-    std::cout << "\nStart Bayesian Network Reasoning:\n";
-    BNInferenceEngine engine;
-    engine.loadModel(workingGraph, instanceMap);
-    engine.reason(workingGraph, instanceMap, current, nullptr);
+    }
 
     // Step 5: Get operational situations to return
     for (auto bottom : bottoms) {

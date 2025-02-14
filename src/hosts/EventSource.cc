@@ -25,13 +25,13 @@
 Define_Module(EventSource);
 
 EventSource::EventSource(){
-    MAX_TRIGGER_LIMIT = 4;
+    MAX_TRIGGER_LIMIT = 8;
     toltalOperations = 0;
     toltalSituations = 0;    
     /*
      * Construct a situation graph and its instance
      */
-    sa.initModel("../files/SG_test_case_AND.json");
+    sa.initModel("../files/SG_test_case_4.json");
 
 //    sa.print();
 

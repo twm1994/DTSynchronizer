@@ -24,3 +24,4 @@ class-diagram.png
 .vscode/settings.json
 logs/reasoner.csv
 logs/reasoner.json
+src/objects/output.puml

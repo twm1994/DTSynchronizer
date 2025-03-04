@@ -25,7 +25,7 @@ Synchronizer::Synchronizer() {
     /*
      * Construct a situation graph and a situation inference engine
      */
-    sr.initModel("../files/SG_test_case_4.json");
+    sr.initModel("../files/SG_test_case_undetermined.json");
     sog.setModel(sr.getModel());
     sog.setModelInstance(&sr);
     // Create logs directory if it doesn't exist
@@ -34,8 +34,6 @@ Synchronizer::Synchronizer() {
         EV_ERROR << "Failed to create logs directory" << endl;
     }
 
-    // Initialize the reasoner's logger
-    sr.initializeLogger(logDir + "/reasoner");
     slice = 0;
     // 500 ms
     check_cycle = 0.5;

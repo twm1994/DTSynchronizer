@@ -21,7 +21,6 @@
 // Project includes
 #include "SituationEvolution.h"
 #include "BNInferenceEngine.h"
-#include "../utils/ReasonerLogger.h"
 
 using namespace omnetpp;
 using namespace std;
@@ -34,7 +33,6 @@ using namespace std;
 class SituationReasoner: public SituationEvolution {
 private:
     SituationGraph workingGraph;
-    std::shared_ptr<ReasonerLogger> logger;
     BNInferenceEngine engine;
 
     /**
@@ -147,7 +145,6 @@ public:
      * 
      * @param logBasePath The base path for log files.
      */
-    void initializeLogger(const std::string& logBasePath);
     
     /**
      * Get the current simulation time.

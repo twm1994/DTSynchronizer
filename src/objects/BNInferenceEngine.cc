@@ -246,7 +246,7 @@ void BNInferenceEngine::loadModel(SituationGraph sg, std::map<long, SituationIns
     std::cout << "Bayesian Network Model loading complete.\n" << std::endl;
 }
 
-void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstance> &instanceMap, simtime_t current, std::shared_ptr<ReasonerLogger> logger) {
+void BNInferenceEngine::reason(SituationGraph sg, std::map<long, SituationInstance> &instanceMap, simtime_t current) {
     /*
      * Build a Bayesian network solution
      */

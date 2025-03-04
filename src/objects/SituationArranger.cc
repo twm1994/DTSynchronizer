@@ -68,7 +68,7 @@ vector<PhysicalOperation> SituationArranger::arrange(int max_trigger_limit, simt
         if (ti.state == SituationInstance::UNTRIGGERED) {
             if (ti.next_start <= current && Random.NextDecimal() > 0) {
 
-//                cout << "trigger situation " << ti.id << endl;
+                cout << "SituationArranger: Trigger top-layer situation " << ti.id << endl;
 
                 // trigger a top-layer situation, if it is not triggered
                 ti.state = SituationInstance::TRIGGERING;
@@ -139,8 +139,8 @@ vector<PhysicalOperation> SituationArranger::arrange(int max_trigger_limit, simt
         }
     }
 
-//    cout << "print triggerable operational stiuations: ";
-//    util::printSet(tOpStiuations);
+   cout << "SituationArranger: Print triggerable operational stiuations: ";
+   util::printSet(tOpStiuations);
 
     /*
      * 3. Pick triggerable operational situations if their triggering cycle has been reached and they are observable
@@ -173,10 +173,10 @@ vector<PhysicalOperation> SituationArranger::arrange(int max_trigger_limit, simt
             s.type = bi.type;
 
             // here, hidden situation are also transmitted, but not triggered, for result analysis
-//            if(bi.type != SituationInstance::HIDDEN){
-            // only send observable operations
-            operations.push_back(s);
-//            }
+            if(bi.type != SituationInstance::HIDDEN){
+                // only send observable operations
+                operations.push_back(s);
+            }
         } else {
             bi.state = SituationInstance::UNTRIGGERED;
         }

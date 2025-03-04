@@ -14,7 +14,6 @@
 #include "SituationInstance.h"
 #include "SituationRelation.h"
 #include "OperationalEvent.h"
-#include "../utils/ReasonerLogger.h"
 
 struct CausalConnection {
     std::set<long> nodes;  // Store node IDs instead of pointers
@@ -50,7 +49,6 @@ private:
     // Solution object for inference
     std::unique_ptr<dlib::bayesian_network_join_tree> _solution;
     
-    std::shared_ptr<ReasonerLogger> _logger;
     
     // Maps node ID to its M,N node IDs for mixed relation handling
     std::map<long, std::pair<long, long>> _mixedNodeInfo;
@@ -149,7 +147,7 @@ public:
     void reason(SituationGraph sg,
                std::map<long, SituationInstance> &instanceMap,
                simtime_t current,
-               std::shared_ptr<ReasonerLogger> logger = nullptr);
+               simtime_t current);
 };
 
 // Custom comparison operators for dlib sets

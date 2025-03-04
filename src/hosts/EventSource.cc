@@ -14,9 +14,6 @@
 // 
 
 #include <algorithm>
-#include <boost/json.hpp>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/json_parser.hpp>
 #include "../common/Constants.h"
 #include "../objects/PhysicalOperation.h"
 #include "../messages/IoTEvent_m.h"
@@ -31,7 +28,7 @@ EventSource::EventSource(){
     /*
      * Construct a situation graph and its instance
      */
-    sa.initModel("../files/SG_test_case_4.json");
+    sa.initModel("../files/SG_test_case_undetermined.json");
 
 //    sa.print();
 

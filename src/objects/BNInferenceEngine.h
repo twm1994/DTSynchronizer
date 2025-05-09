@@ -146,7 +146,6 @@ public:
     void loadModel(SituationGraph sg, std::map<long, SituationInstance>& instanceMap);
     void reason(SituationGraph sg,
                std::map<long, SituationInstance> &instanceMap,
-               simtime_t current,
                simtime_t current);
 };
 

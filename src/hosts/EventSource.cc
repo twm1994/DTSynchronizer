@@ -28,7 +28,7 @@ EventSource::EventSource(){
     /*
      * Construct a situation graph and its instance
      */
-    sa.initModel("../files/SG_test_case_undetermined.json");
+    sa.initModel("../files/SG_test_case_4.json");
 
 //    sa.print();
 

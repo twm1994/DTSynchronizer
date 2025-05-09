@@ -25,7 +25,7 @@ Synchronizer::Synchronizer() {
     /*
      * Construct a situation graph and a situation inference engine
      */
-    sr.initModel("../files/SG_test_case_undetermined.json");
+    sr.initModel("../files/SG_test_case_4.json");
     sog.setModel(sr.getModel());
     sog.setModelInstance(&sr);
     // Create logs directory if it doesn't exist

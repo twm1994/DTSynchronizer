@@ -25,10 +25,6 @@ SituationReasoner::SituationReasoner() :
 SituationReasoner::~SituationReasoner() {
 }
 
-void SituationReasoner::initializeLogger(const std::string& logBasePath) {
-    // Removed logger initialization
-}
-
 void SituationReasoner::beliefPropagation(SituationGraph& graph) {
     // Process each layer from bottom to top in the situation graph
     // Evidence nodes are in lower layers, hypothesis nodes are in upper layers
@@ -766,7 +762,7 @@ std::set<long> SituationReasoner::reason(std::set<long> triggered, simtime_t cur
         std::cout << "\nStart Bayesian Network Reasoning:\n";
         BNInferenceEngine engine;
         engine.loadModel(workingGraph, instanceMap);
-        engine.reason(workingGraph, instanceMap, current, nullptr);
+        engine.reason(workingGraph, instanceMap, current);
 
     }
 
